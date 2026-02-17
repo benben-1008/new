@@ -1,0 +1,77 @@
+[
+    {
+        "name": "日替わり定食（550円）",
+        "stock": 10,
+        "initialStock": 10
+    },
+    {
+        "name": "日替わり丼（450円）",
+        "stock": 10,
+        "initialStock": 10
+    },
+    {
+        "name": "カレーライス（450円）",
+        "stock": 10,
+        "initialStock": 10
+    },
+    {
+        "name": "ハヤシライス（500円）",
+        "stock": 10,
+        "initialStock": 10
+    },
+    {
+        "name": "カツカレー（500円）",
+        "stock": 10,
+        "initialStock": 10
+    },
+    {
+        "name": "やきめし（450円）",
+        "stock": 10,
+        "initialStock": 10
+    },
+    {
+        "name": "醤油ラーメン（450円）",
+        "stock": 10,
+        "initialStock": 10
+    },
+    {
+        "name": "豚骨ラーメン（450円）",
+        "stock": 10,
+        "initialStock": 10
+    },
+    {
+        "name": "かけうどん（350円）",
+        "stock": 10,
+        "initialStock": 10
+    },
+    {
+        "name": "天ぷらうどん（400円）",
+        "stock": 10,
+        "initialStock": 10
+    },
+    {
+        "name": "カレーうどん（400円）",
+        "stock": 9,
+        "initialStock": 10
+    },
+    {
+        "name": "肉うどん（400円）",
+        "stock": 10,
+        "initialStock": 10
+    },
+    {
+        "name": "かけそば（400円）",
+        "stock": 10,
+        "initialStock": 10
+    },
+    {
+        "name": "天ぷらそば（450円）",
+        "stock": 10,
+        "initialStock": 10
+    },
+    {
+        "name": "肉そば（450円）",
+        "stock": 10,
+        "initialStock": 10
+    }
+]

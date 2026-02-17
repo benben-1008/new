@@ -1,0 +1,57 @@
+[
+  {
+    "id": 1737100800000,
+    "date": "2025-02-17",
+    "time": "12:30",
+    "name": "田中太郎",
+    "studentClass": "2年A組",
+    "people": 1,
+    "food": "カレーライス",
+    "reservationNumber": 123,
+    "verified": false
+  },
+  {
+    "id": 1737100801000,
+    "date": "2025-02-17",
+    "time": "12:35",
+    "name": "佐藤花子",
+    "studentClass": "3年B組",
+    "people": 1,
+    "food": "ハンバーグ定食",
+    "reservationNumber": 456,
+    "verified": true
+  },
+  {
+    "id": 1737100802000,
+    "date": "2025-02-17",
+    "time": "12:40",
+    "name": "鈴木一郎",
+    "studentClass": "1年C組",
+    "people": 1,
+    "food": "カレーライス",
+    "reservationNumber": 789,
+    "verified": false
+  },
+  {
+    "id": 1737100803000,
+    "date": "2025-02-18",
+    "time": "12:25",
+    "name": "山田次郎",
+    "studentClass": "2年B組",
+    "people": 1,
+    "food": "ラーメン",
+    "reservationNumber": 234,
+    "verified": false
+  },
+  {
+    "id": 1737100804000,
+    "date": "2025-02-18",
+    "time": "12:30",
+    "name": "高橋美咲",
+    "studentClass": "",
+    "people": 1,
+    "food": "ハンバーグ定食",
+    "reservationNumber": 567,
+    "verified": false
+  }
+]
