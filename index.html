@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OliMeal</title>
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    /* 背景画像設定（olive） */
+    .page-bg {
+      background-image: url('images/olive.jpg');
+      background-size: cover;
+      background-position: center;
+      background-attachment: fixed;
+    }
+
+    /* 可読性を保つための半透明背景 */
+    .container {
+      background-color: rgba(255, 255, 255, 0.92);
+    }
+    /* 便利なリンク：AIアシスタント用オリーブアイコン */
+    .link-icon-olive {
+      width: 48px;
+      height: 48px;
+      margin: 0 auto 15px;
+      border-radius: 50%;
+      background-image: url('images/olive.jpg');
+      background-size: cover;
+      background-position: center;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+    }
+  </style>
+</head>
+
+<body class="page-bg">
+  <div class="container">
+    <header>
+      <h1>🍽️ OliMeal</h1>
+      <p>生徒用サイト</p>
+    </header>
+
+    <main>
+      <section class="status-section">
+        <h2>📅 営業状況</h2>
+        <div id="status-display" class="status-card"></div>
+        <div id="today-menu" class="status-card" style="margin-top: 10px;"></div>
+        <div id="congestion-prediction" class="status-card" style="margin-top: 10px;"></div>
+      </section>
+
+      <section class="info-section">
+        <div class="holiday-header" onclick="toggleHolidayList()"
+          style="display: flex; justify-content: space-between; align-items: center; cursor: pointer; padding: 10px; background-color: #f8f9fa; border-radius: 8px; margin-bottom: 10px;">
+          <h2 style="margin: 0;">📅 今後の休業日</h2>
+          <span id="holiday-toggle-icon" style="font-size: 20px; transition: transform 0.3s;">▼</span>
+        </div>
+        <div id="holidays-list-container" class="info-card" style="display: none;">
+          <div id="holidays-list"></div>
+        </div>
+      </section>
+
+      <section class="info-section">
+        <h2>📅 営業カレンダー</h2>
+        <div id="calendar" class="info-card calendar-container"></div>
+      </section>
+
+      <section class="links-section">
+        <h2>🔗 便利なリンク</h2>
+        <div class="link-cards">
+          <a href="./book.html" class="link-card" style="display: block; text-decoration: none;">
+            <div class="link-icon">📝</div>
+            <h3>予約サイト</h3>
+            <p>食堂の予約ができます</p>
+          </a>
+          <a href="verification.html" class="link-card">
+            <div class="link-icon">🔍</div>
+            <h3>予約確認システム</h3>
+          </a>
+          <a href="ai-assistant-php.html" class="link-card">
+            <div class="link-icon link-icon-olive"></div>
+            <h3>食堂専用AIアシスタント</h3>
+          </a>
+          <a href="review.html" class="link-card">
+            <div class="link-icon">⭐</div>
+            <h3>レビュー投稿</h3>
+          </a>
+          <a href="allergy.html" class="link-card">
+            <div class="link-icon">🍽️</div>
+            <h3>アレルギー情報</h3>
+          </a>
+        </div>
+      </section>
+
+      <section class="info-section">
+        <h2>🔗 URLリンク</h2>
+        <div id="page-links" class="info-card"></div>
+      </section>
+    </main>
+
+    <footer>
+      <p>&copy; 2025 学校食堂管理システム</p>
+    </footer>
+  </div>
+
+  <script>
+    // 背景画像のキャッシュ対策
+    document.addEventListener('DOMContentLoaded', function () {
+      const pageBg = document.querySelector('.page-bg');
+      if (pageBg) {
+        const timestamp = new Date().getTime();
+        pageBg.style.backgroundImage = `url('images/olive.jpg?v=${timestamp}')`;
+      }
+    });
+
+    const API_BASE = 'api/';
+    async function apiGet(path) {
+      const res = await fetch(API_BASE + path, { cache: 'no-store' });
+      if (!res.ok) throw new Error('GET failed: ' + path);
+      return await res.json();
+    }
+    async function loadStatus() {
+      const holidays = await apiGet('holidays.php');
+      const dailyMenus = await apiGet('daily-menu.php');
+      const statusDiv = document.getElementById("status-display");
+      const todayMenuDiv = document.getElementById("today-menu");
+      const congestionDiv = document.getElementById("congestion-prediction");
+      const today = new Date().toISOString().split("T")[0];
+      const todayHoliday = holidays.find(h => h.date === today);
+      const todayMenu = dailyMenus.find(m => m.date === today);
+
+      // 今日が土日かチェック
+      const todayObj = new Date();
+      const dayOfWeek = todayObj.getDay(); // 0=日曜日, 6=土曜日
+      const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+
+      if (todayHoliday || isWeekend) {
+        const reason = todayHoliday?.reason || (dayOfWeek === 0 ? '日曜日' : '土曜日');
+        statusDiv.innerHTML = `<p>🚫 本日（${today}）は休業です。<br>理由: ${reason}</p>`;
+        todayMenuDiv.innerHTML = "";
+        congestionDiv.innerHTML = "";
+      } else {
+        statusDiv.innerHTML = `<p>✅ 本日は営業中です。</p>`;
+
+        if (todayMenu) {
+          todayMenuDiv.innerHTML = `<p>🍽️ 本日の定食は「${todayMenu.food}」です。</p>`;
+        } else {
+          todayMenuDiv.innerHTML = `<p>🍽️ 本日の定食は未設定です。</p>`;
+        }
+        
+        // 混雑予測を読み込む
+        try {
+          const predictionResponse = await fetch('api/ai-advice.php?action=prediction-number', { cache: 'no-store' });
+          if (predictionResponse.ok) {
+            const predictionData = await predictionResponse.json();
+            if (predictionData.prediction !== null && predictionData.prediction !== undefined && predictionData.congestion) {
+              const congestion = predictionData.congestion;
+              congestionDiv.innerHTML = `
+                <div style="padding: 15px; background-color: #f8f9fa; border-radius: 8px; border-left: 4px solid ${congestion.color};">
+                  <p style="margin: 0 0 5px 0;"><strong>📊 今日の混雑予測</strong></p>
+                  <p style="margin: 0; font-size: 1.1rem;">
+                    <span style="color: ${congestion.color}; font-weight: bold; font-size: 1.2rem;">${congestion.text}</span>
+                    ${predictionData.prediction !== null ? `<br><span style="font-size: 0.9rem; color: #6c757d;">予測来客数: 約${predictionData.prediction}人</span>` : ''}
+                  </p>
+                </div>
+              `;
+            } else {
+              congestionDiv.innerHTML = `<p style="color: #6c757d;">📊 混雑予測データがありません</p>`;
+            }
+          } else {
+            congestionDiv.innerHTML = `<p style="color: #6c757d;">📊 混雑予測データがありません</p>`;
+          }
+        } catch (e) {
+          console.error('混雑予測の読み込みエラー:', e);
+          congestionDiv.innerHTML = `<p style="color: #6c757d;">📊 混雑予測データがありません</p>`;
+        }
+      }
+
+      // 今後の休業日
+      const listDiv = document.getElementById("holidays-list");
+      if (holidays.length === 0) {
+        listDiv.innerHTML = "<p>登録された休業日はありません。</p>";
+      } else {
+        listDiv.innerHTML = holidays
+          .map(h => `<p>📅 ${h.date}　📝 ${h.reason || '休業日'}</p>`)
+          .join("");
+      }
+    }
+
+    // カレンダーを生成
+    async function generateCalendar() {
+      const calendarDiv = document.getElementById('calendar');
+      const holidays = await apiGet('holidays.php');
+      const dailyMenus = await apiGet('daily-menu.php');
+      const events = await apiGet('events.php');
+      const today = new Date();
+      const currentMonth = today.getMonth();
+      const currentYear = today.getFullYear();
+
+      // 月の最初の日と最後の日を取得
+      const firstDay = new Date(currentYear, currentMonth, 1);
+      const lastDay = new Date(currentYear, currentMonth + 1, 0);
+      const daysInMonth = lastDay.getDate();
+      const startingDayOfWeek = firstDay.getDay();
+
+      // カレンダーヘッダー
+      const monthNames = ['1月', '2月', '3月', '4月', '5月', '6月',
+        '7月', '8月', '9月', '10月', '11月', '12月'];
+      const dayNames = ['日', '月', '火', '水', '木', '金', '土'];
+
+      let calendarHTML = `
+        <div class="calendar-header">
+          <h4>${currentYear}年 ${monthNames[currentMonth]}</h4>
+        </div>
+        <div class="calendar-grid">
+          <div class="calendar-weekdays">
+      `;
+
+      // 曜日ヘッダー
+      dayNames.forEach(day => {
+        calendarHTML += `<div class="calendar-weekday">${day}</div>`;
+      });
+      calendarHTML += `</div><div class="calendar-days">`;
+
+      // 空白の日付（月の最初の日より前）
+      for (let i = 0; i < startingDayOfWeek; i++) {
+        calendarHTML += `<div class="calendar-day empty"></div>`;
+      }
+
+      // 実際の日付
+      for (let day = 1; day <= daysInMonth; day++) {
+        const dateString = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        const dayOfWeek = new Date(currentYear, currentMonth, day).getDay();
+        const holiday = holidays.find(h => h.date === dateString);
+        const dailyMenu = dailyMenus.find(m => m.date === dateString);
+        const event = events.find(e => e.date === dateString);
+        const isSunday = dayOfWeek === 0;
+        const isSaturday = dayOfWeek === 6;
+        // 休業日かどうか（登録されている休業日または土日）
+        const isHoliday = !!holiday || isSunday || isSaturday;
+
+        let dayClass = 'calendar-day';
+        let dayContent = day;
+
+        if (isHoliday) {
+          dayClass += ' holiday';
+          if (holiday && holiday.reason) {
+            dayContent = `${day}<br><small>${holiday.reason}</small>`;
+          } else if (isSunday) {
+            dayContent = `${day}<br><small>日曜日</small>`;
+          } else if (isSaturday) {
+            dayContent = `${day}<br><small>土曜日</small>`;
+          } else {
+            dayContent = `${day}<br><small>休業日</small>`;
+          }
+        } else if (dailyMenu) {
+          dayContent = `${day}<br><small>${dailyMenu.food}</small>`;
+        } else {
+          dayClass += ' weekday';
+        }
+
+        // 行事・お知らせがある場合は追加表示
+        if (event) {
+          if (isHoliday || dailyMenu) {
+            dayContent += `<br><small style="color: #007bff;">📢 ${event.message}</small>`;
+          } else {
+            dayContent = `${day}<br><small style="color: #007bff;">📢 ${event.message}</small>`;
+          }
+        }
+
+        calendarHTML += `<div class="${dayClass}">${dayContent}</div>`;
+      }
+
+      calendarHTML += `</div></div>`;
+      calendarDiv.innerHTML = calendarHTML;
+    }
+
+    // 休業日リストの折りたたみ
+    function toggleHolidayList() {
+      const container = document.getElementById('holidays-list-container');
+      const icon = document.getElementById('holiday-toggle-icon');
+
+      if (container.style.display === 'none') {
+        container.style.display = 'block';
+        icon.style.transform = 'rotate(180deg)';
+      } else {
+        container.style.display = 'none';
+        icon.style.transform = 'rotate(0deg)';
+      }
+    }
+
+    function renderLinks() {
+      const base = window.location.href.replace(/[^/]*$/, '');
+      const pages = [
+        { name: '生徒用サイト (index.html)', file: 'index.html' },
+        { name: '予約サイト (book.html)', file: 'book.html' },
+        { name: '予約確認システム (verification.html)', file: 'verification.html' },
+        { name: 'レビュー投稿 (review.html)', file: 'review.html' },
+        { name: 'アレルギー情報 (allergy.html)', file: 'allergy.html' },
+        { name: '食堂専用AIアシスタント (ai-assistant-php.html)', file: 'ai-assistant-php.html' }
+      ];
+      const linksDiv = document.getElementById('page-links');
+      if (!linksDiv) return;
+      linksDiv.innerHTML = pages.map(p => {
+        const url = base + p.file;
+        return `<p><strong>${p.name}:</strong> <a href="${url}">${url}</a></p>`;
+      }).join('');
+    }
+
+    window.onload = function () {
+      loadStatus();
+      generateCalendar();
+      renderLinks();
+    };
+  </script>
+</body>
+
+</html>

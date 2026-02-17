@@ -1,0 +1,929 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>予約システム - OliMeal</title>
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .page-bg {
+      background-image: url('images/olive.jpg');
+      background-size: cover;
+      background-position: center;
+      background-attachment: fixed;
+    }
+
+    .container {
+      background-color: rgba(255, 255, 255, 0.95);
+    }
+
+    /* 予約フォームのスタイル */
+    .booking-container {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+
+    .booking-header {
+      text-align: center;
+      padding: 30px 20px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border-radius: 15px 15px 0 0;
+      margin-bottom: 0;
+    }
+
+    .booking-header h1 {
+      font-size: 2.5rem;
+      margin-bottom: 10px;
+      color: white;
+    }
+
+    .booking-header p {
+      font-size: 1.1rem;
+      opacity: 0.95;
+    }
+
+    .booking-card {
+      background: white;
+      border-radius: 0 0 15px 15px;
+      padding: 40px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+      margin-bottom: 30px;
+    }
+
+    .form-group {
+      margin-bottom: 25px;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 600;
+      color: #333;
+      font-size: 1rem;
+    }
+
+    .form-group label .required {
+      color: #dc3545;
+      margin-left: 4px;
+    }
+
+    .form-group input[type="text"],
+    .form-group select {
+      width: 100%;
+      padding: 14px 16px;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      font-size: 1rem;
+      transition: all 0.3s ease;
+      background: #fafafa;
+    }
+
+    .form-group input[type="text"]:focus,
+    .form-group select:focus {
+      outline: none;
+      border-color: #667eea;
+      background: white;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    .form-group small {
+      display: block;
+      margin-top: 6px;
+      color: #666;
+      font-size: 0.875rem;
+    }
+
+    .form-actions {
+      display: flex;
+      gap: 15px;
+      margin-top: 35px;
+    }
+
+    .btn-submit {
+      flex: 2;
+      padding: 16px 32px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 1.1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+    }
+
+    .btn-submit:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+    }
+
+    .btn-submit:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .btn-reset {
+      flex: 1;
+      padding: 16px 32px;
+      background: #6c757d;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .btn-reset:hover {
+      background: #5a6268;
+      transform: translateY(-2px);
+    }
+
+    /* 結果表示 */
+    .result-box {
+      display: none;
+      margin-top: 25px;
+      padding: 25px;
+      border-radius: 10px;
+      animation: slideIn 0.4s ease-out;
+    }
+
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .result-success {
+      background: #d4edda;
+      border: 2px solid #c3e6cb;
+      color: #155724;
+    }
+
+    .result-error {
+      background: #f8d7da;
+      border: 2px solid #f5c6cb;
+      color: #721c24;
+    }
+
+    .result-box h3 {
+      margin: 0 0 15px 0;
+      font-size: 1.3rem;
+    }
+
+    .result-box p {
+      margin: 8px 0;
+      line-height: 1.6;
+    }
+
+    .reservation-number {
+      font-size: 2rem;
+      font-weight: bold;
+      color: #667eea;
+      margin: 10px 0;
+    }
+
+    .result-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 20px;
+    }
+
+    /* メニュー表示 */
+    .menu-preview {
+      background: #f8f9fa;
+      border-radius: 10px;
+      padding: 20px;
+      margin-top: 20px;
+    }
+
+    .menu-preview h3 {
+      margin-top: 0;
+      color: #667eea;
+    }
+
+    .menu-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 15px;
+      margin-top: 15px;
+    }
+
+    .menu-item {
+      background: white;
+      padding: 15px;
+      border-radius: 8px;
+      border: 2px solid #e0e0e0;
+      text-align: center;
+    }
+
+    .menu-item-name {
+      font-weight: 600;
+      color: #333;
+      margin-bottom: 5px;
+    }
+
+    .menu-item-stock {
+      font-size: 0.875rem;
+      color: #666;
+    }
+
+    .menu-item-stock.unlimited {
+      color: #28a745;
+      font-weight: 600;
+    }
+
+    .menu-item-stock.soldout {
+      color: #dc3545;
+      font-weight: 600;
+    }
+
+    /* 予約状況 */
+    .status-preview {
+      background: #e3f2fd;
+      border-radius: 10px;
+      padding: 20px;
+      margin-top: 20px;
+    }
+
+    .status-preview h3 {
+      margin-top: 0;
+      color: #1976d2;
+    }
+
+    .status-item {
+      background: white;
+      padding: 12px;
+      border-radius: 6px;
+      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    /* ローディング */
+    .loading {
+      text-align: center;
+      padding: 20px;
+      color: #666;
+    }
+
+    .spinner {
+      border: 3px solid #f3f3f3;
+      border-top: 3px solid #667eea;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 10px;
+    }
+
+    @keyframes spin {
+      0% {
+        transform: rotate(0deg);
+      }
+
+      100% {
+        transform: rotate(360deg);
+      }
+    }
+
+    /* レスポンシブ */
+    @media (max-width: 768px) {
+      .booking-card {
+        padding: 25px 20px;
+      }
+
+      .booking-header h1 {
+        font-size: 2rem;
+      }
+
+      .form-actions {
+        flex-direction: column;
+      }
+
+      .btn-submit,
+      .btn-reset {
+        width: 100%;
+      }
+
+      .menu-list {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+
+<body class="page-bg">
+  <div class="container">
+    <div class="booking-container">
+      <div class="booking-header">
+        <h1>🍽️ 予約システム</h1>
+        <p>簡単3ステップで予約完了！</p>
+      </div>
+
+      <div class="booking-card">
+        <form id="booking-form">
+          <div class="form-group">
+            <label for="student-name">
+              お名前 <span class="required">*</span>
+            </label>
+            <input type="text" id="student-name" required placeholder="例: 田中太郎" autocomplete="name">
+          </div>
+
+          <div class="form-group">
+            <label for="food">
+              ご希望のメニュー <span class="required">*</span>
+            </label>
+            <select id="food" required>
+              <option value="">-- 読み込み中... --</option>
+            </select>
+            <small>※ 在庫がないメニューは選択できません</small>
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" class="btn-submit" id="submit-btn">
+              📝 予約を確定
+            </button>
+            <button type="button" class="btn-reset" onclick="resetForm()">
+              🔄 リセット
+            </button>
+          </div>
+        </form>
+
+        <!-- 結果表示エリア -->
+        <div id="result-box" class="result-box"></div>
+
+        <!-- メニュー一覧 -->
+        <div class="menu-preview">
+          <h3>📋 現在のメニュー一覧</h3>
+          <div id="menu-display" class="loading">
+            <div class="spinner"></div>
+            <p>メニューを読み込み中...</p>
+          </div>
+        </div>
+
+        <!-- 今日の予約状況 -->
+        <div class="status-preview">
+          <h3>📊 今日の予約状況</h3>
+          <div id="reservations-display" class="loading">
+            <div class="spinner"></div>
+            <p>予約状況を読み込み中...</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <footer style="text-align: center; padding: 30px 20px;">
+      <a href="index.html" class="back-link" style="font-size: 1.1rem;">← メインページに戻る</a>
+    </footer>
+  </div>
+
+  <script>
+    // APIベースパスの解決
+    function getApiBase() {
+      if (typeof window === 'undefined' || !window.location) return 'api/';
+      if (window.location.protocol === 'file:') return 'api/';
+      const path = window.location.pathname;
+      const lastSlash = path.lastIndexOf('/');
+      const basePath = lastSlash >= 0 ? path.substring(0, lastSlash + 1) : '/';
+      return basePath + 'api/';
+    }
+
+    let __apiBaseResolved = null;
+
+    async function resolveApiBase() {
+      if (__apiBaseResolved) return __apiBaseResolved;
+
+      // 候補パスの生成
+      const candidates = [];
+      try {
+        candidates.push(new URL('api/', window.location.href).toString());
+      } catch (_) { }
+      try {
+        candidates.push(new URL('../api/', window.location.href).toString());
+      } catch (_) { }
+      try {
+        candidates.push(window.location.origin + '/api/');
+      } catch (_) { }
+
+      // 同一オリジンの候補だけにする
+      const validCandidates = candidates.filter(u => {
+        try {
+          return new URL(u).origin === window.location.origin;
+        } catch (_) {
+          return false;
+        }
+      });
+
+      console.log('[予約デバッグ] APIベース候補:', validCandidates);
+
+      const probePath = 'menu.php';
+      for (const base of validCandidates) {
+        try {
+          console.log('[予約デバッグ] プローブ中:', base + probePath);
+          const res = await fetch(base + probePath, {
+            cache: 'no-store',
+            method: 'GET'
+          });
+          if (res.ok) {
+            __apiBaseResolved = base;
+            console.log('[予約デバッグ] ✅ APIベースを確定:', __apiBaseResolved);
+            return __apiBaseResolved;
+          } else {
+            console.log('[予約デバッグ] プローブ失敗:', base + probePath, res.status);
+          }
+        } catch (e) {
+          console.log('[予約デバッグ] プローブエラー:', base + probePath, e);
+          continue;
+        }
+      }
+      __apiBaseResolved = getApiBase();
+      console.warn('[予約デバッグ] ⚠️ APIベース確定に失敗。従来パスを使用:', __apiBaseResolved);
+      return __apiBaseResolved;
+    }
+
+    // HTMLエスケープ
+    function escapeHtml(text) {
+      if (text === null || text === undefined) return '';
+      const div = document.createElement('div');
+      div.textContent = String(text);
+      return div.innerHTML;
+    }
+
+    // 今日の日付を取得（YYYY-MM-DD形式）
+    function getTodayIso() {
+      const d = new Date();
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd}`;
+    }
+
+    // メニューと予約状況を読み込む
+    async function loadMenuAndStatus() {
+      const foodSelect = document.getElementById('food');
+      const menuDisplay = document.getElementById('menu-display');
+      const reservationsDisplay = document.getElementById('reservations-display');
+
+      try {
+        const apiBase = await resolveApiBase();
+        const [menuRes, resRes] = await Promise.all([
+          fetch(apiBase + 'menu.php', { cache: 'no-store' }),
+          fetch(apiBase + 'sales-data.php?reservations=true', { cache: 'no-store' })
+        ]);
+
+        // メニューの読み込み
+        if (menuRes.ok) {
+          const menus = await menuRes.json().catch(() => []);
+          if (Array.isArray(menus) && menus.length > 0) {
+            // セレクトボックスを更新
+            if (foodSelect) {
+              foodSelect.innerHTML = '<option value="">-- 選択してください --</option>' +
+                menus.map(m => {
+                  const label = m.stock === -1
+                    ? `${m.name}（無制限）`
+                    : `${m.name}（残り${m.stock}食）`;
+                  const disabled = (m.stock !== -1 && m.stock <= 0) ? ' disabled' : '';
+                  return `<option value="${escapeHtml(m.name)}"${disabled}>${escapeHtml(label)}</option>`;
+                }).join('');
+            }
+
+            // メニュー一覧を表示
+            if (menuDisplay) {
+              menuDisplay.innerHTML = '<div class="menu-list">' +
+                menus.map(m => {
+                  let stockClass = '';
+                  let stockText = '';
+                  if (m.stock === -1) {
+                    stockClass = 'unlimited';
+                    stockText = '無制限';
+                  } else if (m.stock <= 0) {
+                    stockClass = 'soldout';
+                    stockText = '売り切れ';
+                  } else {
+                    stockText = `残り${m.stock}食`;
+                  }
+                  return `
+                    <div class="menu-item">
+                      <div class="menu-item-name">${escapeHtml(m.name)}</div>
+                      <div class="menu-item-stock ${stockClass}">${stockText}</div>
+                    </div>
+                  `;
+                }).join('') + '</div>';
+            }
+          } else {
+            if (foodSelect) foodSelect.innerHTML = '<option value="">メニューが登録されていません</option>';
+            if (menuDisplay) menuDisplay.innerHTML = '<p>メニューが登録されていません。管理画面でメニューを追加してください。</p>';
+          }
+        } else {
+          if (foodSelect) foodSelect.innerHTML = '<option value="">メニューの読み込みに失敗しました</option>';
+          if (menuDisplay) menuDisplay.innerHTML = '<p style="color: #dc3545;">メニューの読み込みに失敗しました。</p>';
+        }
+
+        // 予約状況の読み込み
+        if (resRes.ok) {
+          const raw = await resRes.json();
+          const list = Array.isArray(raw) ? raw : (raw?.reservations || []);
+          const today = getTodayIso();
+          const byFood = {};
+
+          list
+            .filter(r => String(r.date || '') === today)
+            .forEach(r => {
+              const f = (r.food && String(r.food).trim()) || '（未設定）';
+              if (!byFood[f]) byFood[f] = 0;
+              byFood[f] += (r.people || 1);
+            });
+
+          const entries = Object.entries(byFood);
+          if (reservationsDisplay) {
+            if (entries.length === 0) {
+              reservationsDisplay.innerHTML = '<p>今日の予約はまだありません。</p>';
+            } else {
+              reservationsDisplay.innerHTML = entries.map(([food, n]) =>
+                `<div class="status-item">
+                  <span><strong>${escapeHtml(food)}</strong></span>
+                  <span>${n}人</span>
+                </div>`
+              ).join('');
+            }
+          }
+        } else {
+          if (reservationsDisplay) {
+            reservationsDisplay.innerHTML = '<p style="color: #dc3545;">予約状況の読み込みに失敗しました。</p>';
+          }
+        }
+      } catch (e) {
+        console.error('データの読み込みエラー:', e);
+        if (foodSelect) foodSelect.innerHTML = '<option value="">データの読み込みに失敗しました</option>';
+        if (menuDisplay) menuDisplay.innerHTML = '<p style="color: #dc3545;">データの読み込みに失敗しました。Webサーバー経由で開いてください。</p>';
+        if (reservationsDisplay) reservationsDisplay.innerHTML = '<p style="color: #dc3545;">予約状況の読み込みに失敗しました。</p>';
+      }
+    }
+
+    // 結果を表示
+    function showResult(success, html) {
+      const resultBox = document.getElementById('result-box');
+      if (!resultBox) return;
+
+      resultBox.className = `result-box ${success ? 'result-success' : 'result-error'}`;
+      resultBox.innerHTML = html;
+      resultBox.style.display = 'block';
+      resultBox.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    // 結果を非表示
+    function hideResult() {
+      const resultBox = document.getElementById('result-box');
+      if (resultBox) {
+        resultBox.style.display = 'none';
+      }
+    }
+
+    // フォームをリセット
+    function resetForm() {
+      document.getElementById('booking-form').reset();
+      hideResult();
+    }
+
+    // 予約を送信
+    async function submitReservation(formData) {
+      const apiBase = await resolveApiBase();
+      console.log('[予約デバッグ] APIベースパス:', apiBase);
+      console.log('[予約デバッグ] フォームデータ:', formData);
+
+      // 1. メニューデータを取得して残数をチェック
+      const menuUrl = apiBase + 'menu.php';
+      console.log('[予約デバッグ] メニュー取得URL:', menuUrl);
+      const menuResponse = await fetch(menuUrl, { cache: 'no-store' });
+      if (!menuResponse.ok) {
+        const errorText = await menuResponse.text().catch(() => '');
+        console.error('[予約デバッグ] メニュー取得エラー:', menuResponse.status, errorText);
+        throw new Error(`メニューデータの取得に失敗しました（HTTP ${menuResponse.status}）`);
+      }
+
+      const menus = await menuResponse.json();
+      console.log('[予約デバッグ] 取得したメニュー:', menus);
+      const selectedMenu = menus.find(menu => menu.name === formData.food);
+      console.log('[予約デバッグ] 選択されたメニュー:', selectedMenu);
+
+      if (!selectedMenu) {
+        throw new Error('選択されたメニューが見つかりません');
+      }
+
+      // 残数チェック
+      if (selectedMenu.stock !== -1 && selectedMenu.stock <= 0) {
+        throw new Error('このメニューは売り切れです');
+      }
+
+      // 残数を減らす（無制限でない場合）
+      if (selectedMenu.stock !== -1) {
+        selectedMenu.stock -= 1;
+        const updateResponse = await fetch(apiBase + 'menu.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(menus)
+        });
+
+        if (!updateResponse.ok) {
+          const errorText = await updateResponse.text().catch(() => '');
+          console.error('[予約デバッグ] メニュー更新エラー:', updateResponse.status, errorText);
+          throw new Error('メニューの残数更新に失敗しました');
+        }
+        console.log('[予約デバッグ] メニューの残数を更新しました');
+      }
+
+      // 2. 予約データを作成
+      const reservation = {
+        id: Date.now(),
+        date: getTodayIso(),
+        time: new Date().toTimeString().split(' ')[0].substring(0, 5),
+        name: formData.name.trim(),
+        studentClass: '', // 学年・クラスは不要なので空文字
+        people: 1,
+        food: formData.food,
+        reservationNumber: null
+      };
+      console.log('[予約デバッグ] 作成した予約データ:', reservation);
+
+      // 3. 既存の予約を取得（sales-data.jsonから）
+      const reservationsUrl = apiBase + 'sales-data.php?reservations=true';
+      console.log('[予約デバッグ] 予約取得URL:', reservationsUrl);
+      const res = await fetch(reservationsUrl, { cache: 'no-store' });
+      if (!res.ok) {
+        const errorText = await res.text().catch(() => '');
+        console.error('[予約デバッグ] 予約取得エラー:', res.status, errorText);
+        throw new Error(`予約データの取得に失敗しました（HTTP ${res.status}）`);
+      }
+
+      const raw = await res.json();
+      console.log('[予約デバッグ] 取得した生データ:', raw);
+      let existingReservations = [];
+      if (Array.isArray(raw)) {
+        existingReservations = raw;
+      } else if (raw && Array.isArray(raw.reservations)) {
+        existingReservations = raw.reservations;
+      }
+      console.log('[予約デバッグ] 既存予約数:', existingReservations.length);
+      console.log('[予約デバッグ] 既存予約一覧（最初の3件）:', existingReservations.slice(0, 3));
+
+      // 4. 重複チェック（名前のみでチェック）
+      const today = reservation.date;
+      const reservationName = reservation.name.trim();
+      const duplicateReservation = existingReservations.find(r => {
+        const rDate = r.date || '';
+        const rName = (r.name || '').trim();
+        return rDate === today && rName === reservationName;
+      });
+
+      if (duplicateReservation) {
+        throw new Error(`${today}に「${reservationName}」さんは既に予約済みです。同じ日に複数の予約はできません。`);
+      }
+
+      // 5. 予約番号を採番（1-999）
+      const usedNumbers = new Set(
+        existingReservations
+          .filter(r => String(r.date || '') === today)
+          .map(r => parseInt(r.reservationNumber, 10))
+          .filter(n => Number.isFinite(n) && n >= 1 && n <= 999)
+      );
+
+      let candidate = null;
+      for (let i = 0; i < 2000; i++) {
+        const n = Math.floor(Math.random() * 999) + 1;
+        if (!usedNumbers.has(n)) {
+          candidate = n;
+          break;
+        }
+      }
+
+      if (candidate === null) {
+        for (let n = 1; n <= 999; n++) {
+          if (!usedNumbers.has(n)) {
+            candidate = n;
+            break;
+          }
+        }
+      }
+
+      if (candidate === null) {
+        throw new Error('本日の予約番号が上限に達しました（999件）。管理者に連絡してください。');
+      }
+
+      reservation.reservationNumber = candidate;
+      existingReservations.push(reservation);
+      console.log('[予約デバッグ] 予約番号を採番:', candidate);
+      console.log('[予約デバッグ] 保存後の総予約数:', existingReservations.length);
+
+      // 6. 予約を保存（sales-data.jsonに）
+      const saveUrl = apiBase + 'sales-data.php';
+      console.log('[予約デバッグ] 予約保存URL:', saveUrl);
+      console.log('[予約デバッグ] 保存する新しい予約データ:', reservation);
+      console.log('[予約デバッグ] 保存する全予約データ（既存 + 新規）:', existingReservations);
+      console.log('[予約デバッグ] 📤 POST送信データ（JSON）:', JSON.stringify(existingReservations, null, 2));
+
+      const saveResponse = await fetch(saveUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'save-all',
+          reservations: existingReservations
+        })
+      });
+
+      console.log('[予約デバッグ] 保存レスポンス:', saveResponse.status, saveResponse.statusText);
+
+      if (!saveResponse.ok) {
+        const errorText = await saveResponse.text().catch(() => '');
+        console.error('[予約デバッグ] 保存エラー（HTTP）:', saveResponse.status, errorText);
+        let errorData = {};
+        try {
+          errorData = JSON.parse(errorText);
+        } catch (e) {
+          errorData = { error: errorText || `HTTP ${saveResponse.status}` };
+        }
+        console.error('[予約デバッグ] エラーデータ:', errorData);
+        const errorMessage = errorData.message || errorData.error || `予約の保存に失敗しました（HTTP ${saveResponse.status}）`;
+        throw new Error(errorMessage);
+      }
+
+      const saveResult = await saveResponse.json().catch((e) => {
+        console.error('[予約デバッグ] JSON解析エラー:', e);
+        return { ok: false, error: 'サーバーからの応答が正しくありません' };
+      });
+
+      console.log('[予約デバッグ] 保存結果:', saveResult);
+
+      if (saveResult && saveResult.ok !== true) {
+        throw new Error(saveResult.error || saveResult.message || '予約の保存に失敗しました');
+      }
+
+      // 保存確認：サーバーからの応答で保存先ファイルと件数を確認
+      if (saveResult && saveResult.file) {
+        console.log('[予約デバッグ] 📁 保存先ファイル:', saveResult.file);
+      }
+      if (saveResult && saveResult.count !== undefined) {
+        console.log('[予約デバッグ] 📊 保存された予約件数:', saveResult.count);
+      }
+
+      // 保存確認：再度取得して確認（sales-data.json から読み込まれたか確認）
+      try {
+        const verifyRes = await fetch(reservationsUrl, { cache: 'no-store' });
+        if (verifyRes.ok) {
+          const verifyData = await verifyRes.json();
+          const verifyList = Array.isArray(verifyData) ? verifyData : (verifyData?.reservations || []);
+          const found = verifyList.find(r => r.id === reservation.id ||
+            (r.name === reservation.name && r.reservationNumber === reservation.reservationNumber && r.date === reservation.date));
+          if (found) {
+            console.log('[予約デバッグ] ✅ 予約の保存が確認されました（sales-data.json から読み込み成功）');
+            console.log('[予約デバッグ] 📋 保存された予約内容:', found);
+          } else {
+            console.warn('[予約デバッグ] ⚠️ 予約の保存確認に失敗（データが見つかりません）');
+            console.warn('[予約デバッグ] 現在の予約一覧:', verifyList);
+          }
+        }
+      } catch (e) {
+        console.warn('[予約デバッグ] 保存確認エラー（無視）:', e);
+      }
+
+      console.log('[予約デバッグ] ✅ 予約が送信されました:', reservation);
+      console.log('[予約デバッグ] 💾 この予約は sales-data.json に保存されました');
+      return reservation;
+    }
+
+    // 予約情報をコピー
+    async function copyReservationInfo(text) {
+      try {
+        if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+          await navigator.clipboard.writeText(String(text));
+          alert('コピーしました！');
+        } else {
+          prompt('コピーして保存してください:', String(text));
+        }
+      } catch (e) {
+        prompt('コピーして保存してください:', String(text));
+      }
+    }
+
+    // ページ読み込み時の処理
+    document.addEventListener('DOMContentLoaded', function () {
+      console.log('[予約] ページが読み込まれました');
+
+      // メニューと予約状況を読み込む
+      loadMenuForPage();
+
+      // フォーム送信処理
+      const form = document.getElementById('booking-form');
+      if (form) {
+        form.addEventListener('submit', async function (e) {
+          e.preventDefault();
+
+          const formData = {
+            name: document.getElementById('student-name').value.trim(),
+            food: document.getElementById('food').value
+          };
+
+          // バリデーション
+          if (!formData.name) {
+            showResult(false, '<h3>❌ エラー</h3><p>お名前を入力してください。</p>');
+            return;
+          }
+
+          if (!formData.food) {
+            showResult(false, '<h3>❌ エラー</h3><p>メニューを選択してください。</p>');
+            return;
+          }
+
+          // 送信ボタンを無効化
+          const submitButton = document.getElementById('submit-btn');
+          const originalText = submitButton.textContent;
+          submitButton.disabled = true;
+          submitButton.textContent = '送信中...';
+
+          hideResult();
+
+          try {
+            const reservation = await submitReservation(formData);
+            const copyText = `${reservation.name} / 予約番号: ${reservation.reservationNumber} / ${reservation.food} / ${reservation.date} ${reservation.time}`;
+
+            showResult(true, `
+              <h3>✅ 予約が完了しました！</h3>
+              <p><strong>予約番号:</strong></p>
+              <div class="reservation-number">${escapeHtml(reservation.reservationNumber)}</div>
+              <p><strong>お名前:</strong> ${escapeHtml(reservation.name)}</p>
+              <p><strong>メニュー:</strong> ${escapeHtml(reservation.food)}</p>
+              <p><strong>日付:</strong> ${escapeHtml(reservation.date)} ${escapeHtml(reservation.time)}</p>
+              <div class="result-actions">
+                <button class="btn-submit" onclick="copyReservationInfo('${copyText.replace(/'/g, "\\'")}')" style="flex: 1;">
+                  📋 予約情報をコピー
+                </button>
+                <a href="admin.html" class="btn-submit" style="flex: 1; text-decoration: none; text-align: center;">
+                  管理画面で確認
+                </a>
+              </div>
+              <p style="margin-top: 15px; font-size: 0.9rem; color: #155724;">
+                ※ この予約番号は受け取り確認に使います。忘れないようにしてください。
+              </p>
+            `);
+
+            // データを更新
+            await loadMenuAndStatus();
+          } catch (error) {
+            console.error('[予約] ❌ 予約の送信に失敗:', error);
+            console.error('[予約] エラー詳細:', {
+              message: error.message,
+              stack: error.stack,
+              name: error.name
+            });
+            const errorMsg = error.message || '不明なエラー';
+            let debugInfo = '';
+            if (error.message && error.message.includes('HTTP')) {
+              debugInfo = '<p style="margin-top: 10px; font-size: 0.9rem; color: #721c24;"><strong>デバッグ情報:</strong><br>ブラウザのコンソール（F12キー）で <code>[予約デバッグ]</code> のログを確認してください。</p>';
+            }
+            showResult(false, `
+              <h3>❌ 予約に失敗しました</h3>
+              <p style="font-weight: bold; font-size: 1.1rem;">${escapeHtml(errorMsg)}</p>
+              ${debugInfo}
+              <p style="margin-top: 15px; font-size: 0.9rem; color: #721c24;">
+                💡 ブラウザのコンソール（F12キー）で詳細なエラー情報を確認できます。<br>
+                InfinityFree環境の場合、<code>data/</code> フォルダの書き込み権限を確認してください。<br>
+                エラーログには <code>[予約デバッグ]</code> というタグが付いています。
+              </p>
+            `);
+          } finally {
+            submitButton.disabled = false;
+            submitButton.textContent = originalText;
+          }
+        });
+      }
+    });
+
+    // メニューと予約状況を読み込む（グローバル関数としても使用可能）
+    async function loadMenuForPage() {
+      await loadMenuAndStatus();
+    }
+
+    // 背景画像のキャッシュ対策
+    document.addEventListener('DOMContentLoaded', function () {
+      const pageBg = document.querySelector('.page-bg');
+      if (pageBg) {
+        const timestamp = new Date().getTime();
+        pageBg.style.backgroundImage = `url('images/olive.jpg?v=${timestamp}')`;
+      }
+    });
+  </script>
+</body>
+
+</html>

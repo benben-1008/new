@@ -1,0 +1,2573 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OliMeal - 管理サイト</title>
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    /* 背景画像設定（olive） */
+    .page-bg {
+      background-image: url('images/olive.jpg');
+      background-size: cover;
+      background-position: center;
+      background-attachment: fixed;
+    }
+
+    /* 可読性向上のための半透明背景 */
+    .container {
+      background-color: rgba(255, 255, 255, 0.92);
+    }
+
+    /* カレンダー用の簡単なデザイン */
+    .calendar {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 5px;
+      text-align: center;
+      margin-top: 10px;
+      border: 1px solid #ccc;
+      padding: 10px;
+      border-radius: 8px;
+    }
+
+    .calendar div {
+      padding: 5px;
+    }
+
+    .holiday {
+      background-color: #ffcccc;
+      border-radius: 6px;
+    }
+
+    /* タブナビゲーション */
+    .tab-navigation {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+      border-bottom: 2px solid #ddd;
+      padding-bottom: 10px;
+    }
+
+    .tab-button {
+      padding: 12px 24px;
+      background-color: #f8f9fa;
+      border: 2px solid #ddd;
+      border-radius: 8px 8px 0 0;
+      cursor: pointer;
+      font-size: 16px;
+      font-weight: bold;
+      transition: all 0.3s;
+      border-bottom: none;
+    }
+
+    .tab-button:hover {
+      background-color: #e9ecef;
+    }
+
+    .tab-button.active {
+      background-color: #007bff;
+      color: white;
+      border-color: #007bff;
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    /* アコーディオン */
+    .accordion-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 15px 20px;
+      background-color: #f8f9fa;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      cursor: pointer;
+      margin-bottom: 10px;
+      transition: all 0.3s;
+    }
+
+    .accordion-header:hover {
+      background-color: #e9ecef;
+    }
+
+    .accordion-header h3 {
+      margin: 0;
+      font-size: 18px;
+    }
+
+    .accordion-icon {
+      font-size: 20px;
+      transition: transform 0.3s;
+    }
+
+    .accordion-header.active .accordion-icon {
+      transform: rotate(180deg);
+    }
+
+    .accordion-content {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.3s ease-out;
+    }
+
+    .accordion-content.active {
+      max-height: 5000px;
+      transition: max-height 0.5s ease-in;
+    }
+
+    .accordion-body {
+      padding: 20px;
+      background-color: white;
+      border: 1px solid #ddd;
+      border-top: none;
+      border-radius: 0 0 8px 8px;
+      margin-bottom: 10px;
+    }
+
+    /* グリッドレイアウト */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+
+    @media (max-width: 768px) {
+      .grid-2 {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+
+<body class="page-bg">
+  <div class="container">
+    <header>
+      <h1>🔧 OliMeal</h1>
+      <p>管理用サイト</p>
+    </header>
+
+    <main>
+      <!-- タブナビゲーション -->
+      <div class="tab-navigation">
+        <button class="tab-button active" onclick="switchTab('basic', this)">⚙️ 基本設定</button>
+        <button class="tab-button" onclick="switchTab('data', this)">📝 予約確認</button>
+        <button class="tab-button" onclick="switchTab('shifts', this)">📅 シフト表</button>
+        <button class="tab-button" onclick="switchTab('ai-advice', this)">🤖 AIアドバイス</button>
+        <button class="tab-button" onclick="switchTab('system', this)">🔄 システム管理</button>
+        <button class="tab-button" onclick="switchTab('other', this)">🔗 URL</button>
+      </div>
+
+      <!-- 基本設定タブ -->
+      <div id="tab-basic" class="tab-content active">
+        <!-- 🔹 メニュー管理 -->
+        <section class="admin-section">
+          <div class="accordion-header active" onclick="toggleAccordion(this)">
+            <h3>🍱 メニュー管理</h3>
+            <span class="accordion-icon">▼</span>
+          </div>
+          <div class="accordion-content active">
+            <div class="accordion-body">
+              <div class="grid-2">
+                <div class="admin-card">
+                  <h3>メニューを追加</h3>
+                  <div class="form-group">
+                    <label for="menu-name">メニュー名:</label>
+                    <input type="text" id="menu-name" placeholder="例: カレー" required>
+                  </div>
+                  <div class="form-group">
+                    <label for="menu-stock">提供可能数:</label>
+                    <input type="number" id="menu-stock" placeholder="例: 30">
+                  </div>
+                  <div class="form-group">
+                    <label
+                      style="display: flex; align-items: center; font-weight: bold; color: #e74c3c; font-size: 16px; padding: 12px; background-color: #fff5f5; border: 2px solid #e74c3c; border-radius: 8px; cursor: pointer; transition: all 0.3s ease;">
+                      <input type="checkbox" id="unlimited-stock" onchange="toggleStockInput()"
+                        style="margin-right: 12px; transform: scale(2.0); cursor: pointer;">
+                      ♾️ 無制限で提供（在庫管理なし）
+                    </label>
+                  </div>
+                  <button onclick="addMenu()" class="btn btn-primary">メニューを追加</button>
+                </div>
+
+                <div class="admin-card">
+                  <h3>現在のメニュー一覧</h3>
+                  <div id="menu-list"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 🔹 休業日設定 -->
+        <section class="admin-section">
+          <div class="accordion-header" onclick="toggleAccordion(this)">
+            <h3>📅 休業日設定</h3>
+            <span class="accordion-icon">▼</span>
+          </div>
+          <div class="accordion-content">
+            <div class="accordion-body">
+              <div class="grid-2">
+                <div class="admin-card">
+                  <h3>休業日を追加</h3>
+                  <div class="form-group">
+                    <label for="holiday-date">日付:</label>
+                    <input type="date" id="holiday-date" required>
+                  </div>
+                  <div class="form-group">
+                    <label for="holiday-reason">理由（任意）:</label>
+                    <input type="text" id="holiday-reason" placeholder="例: 設備点検（空白でも可）">
+                  </div>
+                  <button onclick="addHoliday()" class="btn btn-primary">休業日を追加</button>
+                  <button onclick="addWeekendHolidays()" class="btn btn-secondary">今月の土日を自動追加</button>
+                </div>
+
+                <div class="admin-card">
+                  <h3>🗓 カレンダー表示</h3>
+                  <div id="calendar" class="calendar"></div>
+                </div>
+              </div>
+              <div class="admin-card">
+                <h3>現在の休業日一覧</h3>
+                <div id="holidays-list" class="holidays-list"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 🔹 定食設定 -->
+        <section class="admin-section">
+          <div class="accordion-header" onclick="toggleAccordion(this)">
+            <h3>🍽️ 定食設定</h3>
+            <span class="accordion-icon">▼</span>
+          </div>
+          <div class="accordion-content">
+            <div class="accordion-body">
+              <div class="grid-2">
+                <div class="admin-card">
+                  <h3>日別定食を設定</h3>
+                  <div class="form-group">
+                    <label for="daily-menu-date">日付:</label>
+                    <input type="date" id="daily-menu-date" required>
+                  </div>
+                  <div class="form-group">
+                    <label for="daily-menu-food">定食メニュー:</label>
+                    <input type="text" id="daily-menu-food" placeholder="例: カレーライス、日替わり定食" required>
+                  </div>
+                  <button onclick="addDailyMenu()" class="btn btn-primary">定食を設定</button>
+                </div>
+
+                <div class="admin-card">
+                  <h3>現在の定食設定一覧</h3>
+                  <div id="daily-menu-list"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 🔹 行事・お知らせ設定 -->
+        <section class="admin-section">
+          <div class="accordion-header" onclick="toggleAccordion(this)">
+            <h3>📢 行事・お知らせ設定</h3>
+            <span class="accordion-icon">▼</span>
+          </div>
+          <div class="accordion-content">
+            <div class="accordion-body">
+              <div class="grid-2">
+                <div class="admin-card">
+                  <h3>行事・お知らせを追加</h3>
+                  <div class="form-group">
+                    <label for="event-date">日付:</label>
+                    <input type="date" id="event-date" required>
+                  </div>
+                  <div class="form-group">
+                    <label for="event-message">内容:</label>
+                    <input type="text" id="event-message" placeholder="例: 文化祭、特別メニュー提供日" required>
+                  </div>
+                  <button onclick="addEvent()" class="btn btn-primary">行事・お知らせを追加</button>
+                </div>
+
+                <div class="admin-card">
+                  <h3>現在の行事・お知らせ一覧</h3>
+                  <div id="events-list"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 🔹 予約時間設定 -->
+        <section class="admin-section">
+          <div class="accordion-header" onclick="toggleAccordion(this)">
+            <h3>⏰ 予約時間設定</h3>
+            <span class="accordion-icon">▼</span>
+          </div>
+          <div class="accordion-content">
+            <div class="accordion-body">
+              <div class="grid-2">
+                <div class="admin-card">
+                  <h3>予約可能時間を設定</h3>
+                  <div id="time-slots-container">
+                    <!-- 時間帯が動的に追加される -->
+                  </div>
+                  <button onclick="addTimeSlot()" class="btn btn-secondary" style="margin-top: 10px;">+ 時間帯を追加</button>
+                  <div class="form-group" style="margin-top: 15px;">
+                    <label for="reservation-message">表示メッセージ:</label>
+                    <input type="text" id="reservation-message" placeholder="例: 予約時間: 11:30-12:45, 17:00-18:30">
+                  </div>
+                  <p style="color: #666; font-size: 14px; margin-top: -10px; margin-bottom: 10px;">
+                    ※ 予約時間を設定すると、自動的に有効になります
+                  </p>
+                  <button onclick="updateReservationTimes()" class="btn btn-primary">予約時間を更新</button>
+                </div>
+
+                <div class="admin-card">
+                  <h3>現在の予約時間設定</h3>
+                  <div id="reservation-times-display"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+      </div>
+
+      <!-- シフト表タブ -->
+      <div id="tab-shifts" class="tab-content">
+        <section class="admin-section">
+          <div class="accordion-header active" onclick="toggleAccordion(this)">
+            <h3>📅 シフト表管理</h3>
+            <span class="accordion-icon">▼</span>
+          </div>
+          <div class="accordion-content active">
+            <div class="accordion-body">
+              <div class="admin-card">
+                <h3>シフト表</h3>
+                <div class="form-group">
+                  <label for="shift-display-month">表示月:</label>
+                  <input type="month" id="shift-display-month" onchange="loadShifts()">
+                </div>
+                <div class="form-group">
+                  <label for="shift-employee-name">従業員名を追加:</label>
+                  <div style="display: flex; gap: 10px;">
+                    <input type="text" id="shift-employee-name" placeholder="例: 田中太郎" style="flex: 1;">
+                    <button onclick="addEmployeeName()" class="btn btn-secondary">追加</button>
+                  </div>
+                </div>
+                <p style="color: #666; font-size: 14px; margin-top: 10px;">
+                  💡 シフト表のセルをクリックすると記号を選択できます（〇=出勤、X=休み、受=受付、H=残業、数字=その他）
+                </p>
+                <div id="shifts-list"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <!-- データ管理タブ -->
+      <div id="tab-data" class="tab-content">
+        <!-- 🔹 予約一覧 -->
+        <section class="admin-section">
+          <div class="accordion-header active" onclick="toggleAccordion(this)">
+            <h3>📝 予約一覧</h3>
+            <span class="accordion-icon">▼</span>
+          </div>
+          <div class="accordion-content active">
+            <div class="accordion-body">
+              <div class="admin-card">
+                <h3>予約状況</h3>
+                <div style="margin-bottom:10px;">
+                  <button onclick="loadReservations()" class="btn btn-primary">予約一覧を更新</button>
+                  <a href="reservation-list.html" class="btn btn-secondary" style="text-decoration:none;">管理用：予約一覧（認証）を開く</a>
+                </div>
+                <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:10px;">
+                  <div class="form-group" style="margin:0;min-width:200px;flex:0 0 auto;">
+                    <label for="admin-filter-date">表示日</label>
+                    <input type="date" id="admin-filter-date">
+                  </div>
+                  <div class="form-group" style="margin:0;min-width:200px;flex:0 0 auto;">
+                    <label for="admin-filter-mode">表示</label>
+                    <select id="admin-filter-mode" style="width:100%;padding:10px;border:2px solid #ddd;border-radius:6px;">
+                      <option value="all" selected>すべて</option>
+                      <option value="today">指定日の予約のみ</option>
+                      <option value="unverified">未認証のみ</option>
+                      <option value="verified">認証済みのみ</option>
+                    </select>
+                  </div>
+                  <div class="form-group" style="margin:0;min-width:260px;flex:1 1 260px;">
+                    <label for="admin-filter-q">検索（名前/クラス/番号/メニュー）</label>
+                    <input type="text" id="admin-filter-q" placeholder="例: 田中 / 2A / 123 / カレー">
+                  </div>
+                </div>
+                <div id="reservations-list"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 🔹 レビュー一覧 -->
+        <section class="admin-section">
+          <div class="accordion-header" onclick="toggleAccordion(this)">
+            <h3>⭐ レビュー一覧</h3>
+            <span class="accordion-icon">▼</span>
+          </div>
+          <div class="accordion-content">
+            <div class="accordion-body">
+              <div class="admin-card">
+                <h3>投稿されたレビュー</h3>
+                <div style="margin-bottom:10px;">
+                  <button onclick="loadReviews()" class="btn btn-primary">レビュー一覧を更新</button>
+                </div>
+                <div id="reviews-list"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <!-- システム管理タブ -->
+      <div id="tab-system" class="tab-content">
+        <!-- 🔹 月間レポート -->
+        <section class="admin-section">
+          <div class="accordion-header" onclick="toggleAccordion(this)">
+            <h3>📊 月間レポート</h3>
+            <span class="accordion-icon">▼</span>
+          </div>
+          <div class="accordion-content">
+            <div class="accordion-body">
+              <div class="admin-card">
+                <h3>レポート生成</h3>
+                <div class="form-group">
+                  <label for="report-year">年:</label>
+                  <select id="report-year">
+                    <option value="2024">2024年</option>
+                    <option value="2025" selected>2025年</option>
+                    <option value="2026">2026年</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label for="report-month">月:</label>
+                  <select id="report-month">
+                    <option value="1">1月</option>
+                    <option value="2">2月</option>
+                    <option value="3">3月</option>
+                    <option value="4">4月</option>
+                    <option value="5">5月</option>
+                    <option value="6">6月</option>
+                    <option value="7">7月</option>
+                    <option value="8">8月</option>
+                    <option value="9">9月</option>
+                    <option value="10">10月</option>
+                    <option value="11">11月</option>
+                    <option value="12">12月</option>
+                  </select>
+                </div>
+                <div style="margin-bottom:10px;">
+                  <button onclick="generateReport()" class="btn btn-primary">レポート生成</button>
+                  <button onclick="downloadReport()" class="btn btn-success">Excel形式でダウンロード</button>
+                </div>
+                <div id="report-display"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 🔹 AI分析 -->
+        <section class="admin-section">
+          <div class="accordion-header" onclick="toggleAccordion(this)">
+            <h3>🤖 AI分析</h3>
+            <span class="accordion-icon">▼</span>
+          </div>
+          <div class="accordion-content">
+            <div class="accordion-body">
+              <div class="admin-card">
+                <h3>AIによるデータ分析</h3>
+                <p style="color: #666; margin-bottom: 15px;">
+                  レビューや売上データをAIが分析し、改善点や良い点をわかりやすく提示します。
+                </p>
+                <div class="form-group">
+                  <label for="ai-analysis-year">年:</label>
+                  <select id="ai-analysis-year">
+                    <option value="2024">2024年</option>
+                    <option value="2025" selected>2025年</option>
+                    <option value="2026">2026年</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label for="ai-analysis-month">月:</label>
+                  <select id="ai-analysis-month">
+                    <option value="1">1月</option>
+                    <option value="2">2月</option>
+                    <option value="3">3月</option>
+                    <option value="4">4月</option>
+                    <option value="5">5月</option>
+                    <option value="6">6月</option>
+                    <option value="7">7月</option>
+                    <option value="8">8月</option>
+                    <option value="9">9月</option>
+                    <option value="10">10月</option>
+                    <option value="11">11月</option>
+                    <option value="12">12月</option>
+                  </select>
+                </div>
+                <div style="margin-bottom:10px;">
+                  <button onclick="performAIAnalysis()" class="btn btn-primary">🤖 AI分析を実行</button>
+                </div>
+                <div id="ai-analysis-display"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <!-- AIアドバイスタブ -->
+      <div id="tab-ai-advice" class="tab-content">
+        <section class="admin-section">
+          <div class="accordion-header active" onclick="toggleAccordion(this)">
+            <h3>🤖 AIアドバイス</h3>
+            <span class="accordion-icon">▼</span>
+          </div>
+          <div class="accordion-content active">
+            <div class="accordion-body">
+              <div class="grid-2">
+                <div class="admin-card">
+                  <h3>📊 来客数データのアップロード</h3>
+                  <p style="color: #666; font-size: 14px; margin-bottom: 15px;">
+                    ※ エクセルファイル（.xlsx）をアップロードして、来客数予測の精度を向上させます。<br>
+                    ※ エクセルファイルの1列目に日付、2列目に来客数を入力してください。
+                  </p>
+                  <div class="form-group">
+                    <label for="excel-file">エクセルファイルを選択:</label>
+                    <input type="file" id="excel-file" accept=".xlsx,.xls,.csv" style="margin-top: 5px;">
+                  </div>
+                  <button onclick="uploadExcelFile()" class="btn btn-primary">ファイルをアップロード</button>
+                  <div id="excel-upload-status" style="margin-top: 10px;"></div>
+                </div>
+
+                <div class="admin-card">
+                  <h3>📈 現在の来客数データ</h3>
+                  <div id="attendance-data-display"></div>
+                </div>
+              </div>
+
+              <div class="admin-card" style="margin-top: 20px;">
+                <h3>🍽️ 今日のおすすめ定食</h3>
+                <p style="color: #666; font-size: 14px; margin-bottom: 15px;">
+                  AIが今日の曜日と予算（400円程度）に基づいて、おすすめの定食メニューを提案します。<br>
+                  <small style="color: #999;">※ 1日1回の提案です。同じ日は同じメニューが表示されます。</small>
+                </p>
+                <button onclick="getMenuAdvice()" class="btn btn-primary">定食メニューを提案</button>
+                <div id="menu-advice-display"
+                  style="margin-top: 20px; padding: 15px; background-color: #f8f9fa; border-radius: 8px; border: 1px solid #e9ecef; min-height: 100px;">
+                  <p style="color: #6c757d;">「定食メニューを提案」ボタンをクリックしてください</p>
+                </div>
+                <div id="menu-advice-chat" style="margin-top: 20px; display: none;">
+                  <h4 style="margin-bottom: 10px; color: #495057;">💬 メニューについて質問する</h4>
+                  <div id="menu-chat-messages"
+                    style="max-height: 300px; overflow-y: auto; padding: 10px; background-color: white; border-radius: 8px; border: 1px solid #e9ecef; margin-bottom: 10px;">
+                  </div>
+                  <div style="display: flex; gap: 10px;">
+                    <input type="text" id="menu-chat-input" placeholder="例：もっと詳しく教えて、材料は？など..."
+                      style="flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+                    <button onclick="sendMenuChatMessage()" class="btn btn-primary">送信</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="admin-card" style="margin-top: 20px;">
+                <h3>👥 今日の来客数予測</h3>
+                <p style="color: #666; font-size: 14px; margin-bottom: 15px;">
+                  AIが過去の来客数データを分析して、今日の来客数を予測します。
+                </p>
+                <button onclick="getAttendancePrediction()" class="btn btn-primary">来客数を予測</button>
+                <div id="attendance-prediction-display"
+                  style="margin-top: 20px; padding: 15px; background-color: #f8f9fa; border-radius: 8px; border: 1px solid #e9ecef; min-height: 100px;">
+                  <p style="color: #6c757d;">「来客数を予測」ボタンをクリックしてください</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <!-- その他タブ -->
+      <div id="tab-other" class="tab-content">
+        <section class="admin-section">
+          <div class="accordion-header active" onclick="toggleAccordion(this)">
+            <h3>🔗 URLリンク</h3>
+            <span class="accordion-icon">▼</span>
+          </div>
+          <div class="accordion-content active">
+            <div class="accordion-body">
+              <div id="page-links" class="admin-card"></div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+    </main>
+
+    <footer>
+      <p>&copy; 2025 学校食堂管理システム</p>
+    </footer>
+  </div>
+
+  <script>
+    // === API ヘルパー ===
+    // 現在のページと同じフォルダの api/ を参照（サブフォルダで開いても正しく動作）
+    function getApiBase() {
+      if (window.location.protocol === 'file:') return 'api/';
+      const path = window.location.pathname;
+      const lastSlash = path.lastIndexOf('/');
+      const basePath = lastSlash >= 0 ? path.substring(0, lastSlash + 1) : '/';
+      return basePath + 'api/';
+    }
+    const API_BASE = 'api/';
+    function getApiBaseCandidates() {
+      if (typeof window === 'undefined' || !window.location) return ['api/'];
+      if (window.location.protocol === 'file:') return ['api/'];
+      const sameDir = new URL('api/', window.location.href).toString();
+      const parentDir = new URL('../api/', window.location.href).toString();
+      const rootDir = window.location.origin + '/api/';
+      const candidates = [sameDir, parentDir, rootDir].filter(u => {
+        try { return new URL(u).origin === window.location.origin; } catch (_) { return false; }
+      });
+      return [...new Set(candidates)];
+    }
+
+    async function apiGet(path) {
+      const candidates = getApiBaseCandidates();
+      let lastErr = null;
+      for (const base of candidates) {
+        try {
+          const res = await fetch(base + path, { cache: 'no-store' });
+          if (!res.ok) { lastErr = new Error(`GET failed: ${base}${path} (HTTP ${res.status})`); continue; }
+          const text = await res.text();
+          try {
+            return JSON.parse(text);
+          } catch (e) {
+            lastErr = new Error(`API応答がJSONではありません: ${base}${path}`);
+            continue;
+          }
+        } catch (e) {
+          lastErr = e;
+        }
+      }
+      throw lastErr || new Error('GET failed');
+    }
+
+    async function apiPost(path, data) {
+      const candidates = getApiBaseCandidates();
+      let lastErr = null;
+      for (const base of candidates) {
+        try {
+          const res = await fetch(base + path, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+          });
+          if (!res.ok) { lastErr = new Error(`POST failed: ${base}${path} (HTTP ${res.status})`); continue; }
+          return await res.json();
+        } catch (e) {
+          lastErr = e;
+        }
+      }
+      throw lastErr || new Error('POST failed');
+    }
+    // === メニュー管理 ===
+    function toggleStockInput() {
+      const stockInput = document.getElementById("menu-stock");
+      const unlimitedCheckbox = document.getElementById("unlimited-stock");
+
+      if (unlimitedCheckbox.checked) {
+        stockInput.disabled = true;
+        stockInput.value = "";
+        stockInput.placeholder = "無制限";
+      } else {
+        stockInput.disabled = false;
+        stockInput.placeholder = "例: 30";
+      }
+    }
+
+    async function loadMenus() {
+      const list = document.getElementById("menu-list");
+      list.innerHTML = "";
+      let menus = await apiGet('menu.php');
+
+      // 既存データの初期在庫フィールドを補完（初回のみ）
+      let needsSave = false;
+      menus.forEach(m => {
+        if (typeof m.initialStock !== 'number' || m.initialStock <= 0) {
+          m.initialStock = m.stock;
+          needsSave = true;
+        }
+      });
+      if (needsSave) {
+        await apiPost('menu.php', menus);
+      }
+
+      if (!menus || menus.length === 0) {
+        list.innerHTML = "<p>メニューが登録されていません。</p>";
+        return;
+      }
+
+      menus.forEach((m, i) => {
+        const div = document.createElement("div");
+        div.className = "menu-item";
+        const stockDisplay = m.stock === -1 ? "無制限" : `${m.stock}食`;
+        div.innerHTML = `
+          <p>🍱 ${m.name}　残り: ${stockDisplay}</p>
+          <div style="display: flex; gap: 5px;">
+            <button onclick="editMenuStock(${i})" class="btn btn-secondary">残数変更</button>
+            <button onclick="deleteMenu(${i})" class="btn btn-danger">削除</button>
+          </div>
+        `;
+        list.appendChild(div);
+      });
+    }
+
+    async function addMenu() {
+      const name = document.getElementById("menu-name").value.trim();
+      const unlimitedCheckbox = document.getElementById("unlimited-stock");
+      const stockInput = document.getElementById("menu-stock");
+
+      if (!name) return alert("メニュー名を入力してください。");
+
+      let stock, initialStock;
+      if (unlimitedCheckbox.checked) {
+        stock = -1; // 無制限を-1で表現
+        initialStock = -1;
+      } else {
+        stock = parseInt(stockInput.value);
+        if (!stock || stock <= 0) return alert("提供数を正しく入力してください。");
+        initialStock = stock;
+      }
+
+      const menus = await apiGet('menu.php');
+      menus.push({ name, stock, initialStock });
+      await apiPost('menu.php', menus);
+
+      document.getElementById("menu-name").value = "";
+      document.getElementById("menu-stock").value = "";
+      document.getElementById("unlimited-stock").checked = false;
+      stockInput.disabled = false;
+      stockInput.placeholder = "例: 30";
+      loadMenus();
+    }
+
+    async function editMenuStock(index) {
+      const menus = await apiGet('menu.php');
+      const menu = menus[index];
+
+      const newStock = prompt(`${menu.name}の残数を変更してください（現在: ${menu.stock === -1 ? '無制限' : menu.stock}）`, menu.stock === -1 ? '' : menu.stock);
+
+      if (newStock === null) return; // キャンセル
+
+      if (newStock === '' || newStock === '無制限') {
+        menu.stock = -1;
+      } else {
+        const stock = parseInt(newStock);
+        if (isNaN(stock) || stock < 0) {
+          alert('有効な数値を入力してください。');
+          return;
+        }
+        menu.stock = stock;
+      }
+
+      await apiPost('menu.php', menus);
+      loadMenus();
+    }
+
+    async function deleteMenu(index) {
+      const menus = await apiGet('menu.php');
+      menus.splice(index, 1);
+      await apiPost('menu.php', menus);
+      loadMenus();
+    }
+
+    // === 休業日管理 ===
+    async function addHoliday() {
+      const date = document.getElementById("holiday-date").value;
+      const reason = document.getElementById("holiday-reason").value.trim();
+      if (!date) return alert("日付を入力してください。");
+
+      const holidays = await apiGet('holidays.php');
+
+      // 既に同じ日付の休業日があるかチェック
+      const existingIndex = holidays.findIndex(h => h.date === date);
+      if (existingIndex >= 0) {
+        if (!confirm('この日付は既に休業日として登録されています。上書きしますか？')) {
+          return;
+        }
+        holidays[existingIndex].reason = reason || '休業日';
+      } else {
+        holidays.push({ date, reason: reason || '休業日' });
+      }
+
+      await apiPost('holidays.php', holidays);
+
+      document.getElementById("holiday-date").value = "";
+      document.getElementById("holiday-reason").value = "";
+      loadHolidays();
+      renderCalendar();
+    }
+
+    // 今月の土日を自動追加
+    async function addWeekendHolidays() {
+      if (!confirm('今月の土曜日と日曜日を休業日として追加しますか？\n既に登録されている日付は上書きされます。')) {
+        return;
+      }
+
+      const holidays = await apiGet('holidays.php');
+      const today = new Date();
+      const year = today.getFullYear();
+      const month = today.getMonth();
+
+      // 今月の最初の日と最後の日を取得
+      const firstDay = new Date(year, month, 1);
+      const lastDay = new Date(year, month + 1, 0);
+
+      // 今月のすべての日付をチェック
+      for (let day = 1; day <= lastDay.getDate(); day++) {
+        const date = new Date(year, month, day);
+        const dayOfWeek = date.getDay(); // 0=日曜日, 6=土曜日
+        const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+
+        // 土曜日（6）または日曜日（0）の場合
+        if (dayOfWeek === 0 || dayOfWeek === 6) {
+          const reason = dayOfWeek === 0 ? '日曜日' : '土曜日';
+
+          // 既に登録されているかチェック
+          const existingIndex = holidays.findIndex(h => h.date === dateStr);
+          if (existingIndex >= 0) {
+            holidays[existingIndex].reason = reason;
+          } else {
+            holidays.push({ date: dateStr, reason: reason });
+          }
+        }
+      }
+
+      await apiPost('holidays.php', holidays);
+      alert('今月の土日を休業日として追加しました。');
+      loadHolidays();
+      renderCalendar();
+    }
+
+    async function loadHolidays() {
+      const holidays = await apiGet('holidays.php');
+      const list = document.getElementById("holidays-list");
+
+      if (!holidays || holidays.length === 0) {
+        list.innerHTML = "<p>休業日は登録されていません。</p>";
+        return;
+      }
+
+      // 日付順にソート
+      const sortedHolidays = holidays.sort((a, b) => a.date.localeCompare(b.date));
+
+      list.innerHTML = sortedHolidays.map((h, i) => {
+        const div = document.createElement("div");
+        div.className = "menu-item";
+        const reason = h.reason || '休業日';
+        div.innerHTML = `
+          <p>📅 ${h.date}　📝 ${reason}</p>
+          <button onclick="deleteHoliday(${i})" class="btn btn-danger">削除</button>
+        `;
+        return div.outerHTML;
+      }).join('');
+    }
+
+    async function deleteHoliday(index) {
+      if (!confirm('この休業日を削除しますか？')) return;
+
+      const holidays = await apiGet('holidays.php');
+      holidays.splice(index, 1);
+      await apiPost('holidays.php', holidays);
+
+      // カレンダーを再描画してから休業日一覧を更新
+      await renderCalendar();
+      loadHolidays();
+    }
+
+    // === カレンダー表示 ===
+    async function renderCalendar() {
+      const calendar = document.getElementById("calendar");
+      const holidays = await apiGet('holidays.php');
+      const dailyMenus = await apiGet('daily-menu.php');
+      const events = await apiGet('events.php');
+      const today = new Date();
+      const year = today.getFullYear();
+      const month = today.getMonth(); // 0始まり
+
+      const firstDay = new Date(year, month, 1);
+      const lastDay = new Date(year, month + 1, 0);
+      const startWeekday = firstDay.getDay();
+
+      calendar.innerHTML = "";
+
+      // 曜日
+      ["日", "月", "火", "水", "木", "金", "土"].forEach(d => {
+        const div = document.createElement("div");
+        div.innerHTML = `<strong>${d}</strong>`;
+        calendar.appendChild(div);
+      });
+
+      // 空欄
+      for (let i = 0; i < startWeekday; i++) {
+        const blank = document.createElement("div");
+        calendar.appendChild(blank);
+      }
+
+      // 日付
+      for (let day = 1; day <= lastDay.getDate(); day++) {
+        const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+        const div = document.createElement("div");
+        const holiday = holidays.find(h => h.date === dateStr);
+        const dailyMenu = dailyMenus.find(m => m.date === dateStr);
+        const event = events.find(e => e.date === dateStr);
+        const isHoliday = !!holiday;
+
+        let content = `${day}`;
+        let classes = [];
+
+        if (isHoliday) {
+          classes.push("holiday");
+          if (holiday && holiday.reason) {
+            content += `<br><small>${holiday.reason}</small>`;
+          }
+        } else if (dailyMenu) {
+          content += `<br><small>${dailyMenu.food}</small>`;
+        }
+
+        // 行事・お知らせがある場合は追加表示
+        if (event) {
+          if (isHoliday || dailyMenu) {
+            content += `<br><small style="color: #007bff;">📢 ${event.message}</small>`;
+          } else {
+            content = `${day}<br><small style="color: #007bff;">📢 ${event.message}</small>`;
+          }
+        }
+
+        div.innerHTML = content;
+        if (classes.length > 0) {
+          div.className = classes.join(' ');
+        }
+        calendar.appendChild(div);
+      }
+    }
+
+    // === 定食設定 ===
+    async function addDailyMenu() {
+      const date = document.getElementById("daily-menu-date").value;
+      const food = document.getElementById("daily-menu-food").value;
+      if (!date || !food) return alert("日付と定食メニューを選択してください。");
+
+      const dailyMenus = await apiGet('daily-menu.php');
+
+      // 同じ日付の設定がある場合は更新、なければ追加
+      const existingIndex = dailyMenus.findIndex(m => m.date === date);
+      if (existingIndex >= 0) {
+        dailyMenus[existingIndex].food = food;
+      } else {
+        dailyMenus.push({ date, food });
+      }
+
+      await apiPost('daily-menu.php', dailyMenus);
+
+      document.getElementById("daily-menu-date").value = "";
+      document.getElementById("daily-menu-food").value = "";
+      loadDailyMenus();
+      renderCalendar();
+    }
+
+    async function loadDailyMenus() {
+      const dailyMenus = await apiGet('daily-menu.php');
+      const list = document.getElementById("daily-menu-list");
+
+      if (!dailyMenus || dailyMenus.length === 0) {
+        list.innerHTML = "<p>定食設定はありません。</p>";
+        return;
+      }
+
+      // 日付順にソート
+      const sortedMenus = dailyMenus.sort((a, b) => a.date.localeCompare(b.date));
+
+      list.innerHTML = sortedMenus.map(m => {
+        const div = document.createElement("div");
+        div.className = "menu-item";
+        div.innerHTML = `
+          <p>📅 ${m.date}　🍽️ ${m.food}</p>
+          <button onclick="deleteDailyMenu('${m.date}')" class="btn btn-danger">削除</button>
+        `;
+        return div.outerHTML;
+      }).join('');
+    }
+
+    async function deleteDailyMenu(date) {
+      if (!confirm('この定食設定を削除しますか？')) return;
+
+      const dailyMenus = await apiGet('daily-menu.php');
+      const filtered = dailyMenus.filter(m => m.date !== date);
+      await apiPost('daily-menu.php', filtered);
+      loadDailyMenus();
+      renderCalendar();
+    }
+
+    // === 行事・お知らせ管理 ===
+    async function addEvent() {
+      const date = document.getElementById("event-date").value;
+      const message = document.getElementById("event-message").value.trim();
+      if (!date || !message) return alert("日付と内容を入力してください。");
+
+      const events = await apiGet('events.php');
+
+      // 同じ日付の設定がある場合は更新、なければ追加
+      const existingIndex = events.findIndex(e => e.date === date);
+      if (existingIndex >= 0) {
+        events[existingIndex].message = message;
+      } else {
+        events.push({ date, message });
+      }
+
+      await apiPost('events.php', events);
+
+      document.getElementById("event-date").value = "";
+      document.getElementById("event-message").value = "";
+      loadEvents();
+      renderCalendar();
+    }
+
+    async function loadEvents() {
+      const events = await apiGet('events.php');
+      const list = document.getElementById("events-list");
+
+      if (!events || events.length === 0) {
+        list.innerHTML = "<p>行事・お知らせは登録されていません。</p>";
+        return;
+      }
+
+      // 日付順にソート
+      const sortedEvents = events.sort((a, b) => a.date.localeCompare(b.date));
+
+      list.innerHTML = sortedEvents.map(e => {
+        const div = document.createElement("div");
+        div.className = "menu-item";
+        div.innerHTML = `
+          <p>📅 ${e.date}　📢 ${e.message}</p>
+          <button onclick="deleteEvent('${e.date}')" class="btn btn-danger">削除</button>
+        `;
+        return div.outerHTML;
+      }).join('');
+    }
+
+    async function deleteEvent(date) {
+      if (!confirm('この行事・お知らせを削除しますか？')) return;
+
+      const events = await apiGet('events.php');
+      const filtered = events.filter(e => e.date !== date);
+      await apiPost('events.php', filtered);
+      loadEvents();
+      renderCalendar();
+    }
+
+    // === 予約一覧 ===
+    async function loadReservations() {
+      const list = document.getElementById("reservations-list");
+      let reservations = [];
+      const isFileProtocol = window.location.protocol === 'file:';
+      const apiBase = getApiBase();
+      console.log('[管理画面デバッグ] APIベースパス:', apiBase);
+      console.log('[管理画面デバッグ] プロトコル:', window.location.protocol);
+      console.log('[管理画面デバッグ] URL:', window.location.href);
+      
+      try {
+        const reservationsUrl = apiBase + 'sales-data.php?reservations=true';
+        console.log('[管理画面デバッグ] 予約取得URL:', reservationsUrl);
+        const raw = await fetch(reservationsUrl, { cache: 'no-store' }).then(r => r.json());
+        console.log('[管理画面デバッグ] 取得データ:', raw);
+        console.log('[管理画面デバッグ] データタイプ:', Array.isArray(raw) ? '配列' : typeof raw);
+        console.log('[管理画面デバッグ] 📁 読み込み元: sales-data.json');
+        
+        if (Array.isArray(raw)) {
+          reservations = raw;
+        } else if (raw && Array.isArray(raw.reservations)) {
+          reservations = raw.reservations;
+        } else {
+          reservations = [];
+        }
+        console.log('[管理画面デバッグ] 📊 予約数:', reservations.length);
+        if (reservations.length > 0) {
+          console.log('[管理画面デバッグ] 📋 予約一覧（最初の3件）:', reservations.slice(0, 3));
+        }
+      } catch (e) {
+        console.error('[管理画面デバッグ] ❌ 予約一覧の取得に失敗:', e);
+        console.error('[管理画面デバッグ] エラー詳細:', {
+          message: e.message,
+          stack: e.stack,
+          name: e.name
+        });
+        let errMsg = '予約データの取得に失敗しました。';
+        if (isFileProtocol) {
+          errMsg += '<br><strong>※ ファイルを直接開いています。</strong> 予約を表示するには、PHPが動作するWebサーバー経由で開いてください。<br>例: <code>http://localhost/admin.html</code> または レンタルサーバーのURL（例: https://〇〇.infinityfreeapp.com/admin.html）';
+        } else {
+          errMsg += '<br>エラー: ' + escapeHtml(e.message || '不明なエラー');
+          errMsg += '<br><br>💡 <strong>InfinityFree環境の場合の確認事項:</strong><br>';
+          errMsg += '1. <code>data/</code> フォルダが存在し、書き込み権限があるか確認<br>';
+          errMsg += '2. <code>api/sales-data.php</code> が正しくアップロードされているか確認<br>';
+          errMsg += '3. ブラウザのコンソール（F12キー）で詳細なエラーを確認<br>';
+          errMsg += '4. しばらくしてから「予約一覧を更新」を押すか、ページを再読み込みしてください。';
+        }
+        list.innerHTML = "<div style='color:#dc3545; padding:15px; background:#fff3cd; border:2px solid #ffc107; border-radius:8px;'>" + errMsg + "</div>";
+        return;
+      }
+      if (reservations.length === 0) {
+        let emptyMsg = '予約はありません（0件）。';
+        emptyMsg += '<br>予約サイト（<a href="book.html">book.html</a>）で予約した後、「予約一覧を更新」を押してください。';
+        if (isFileProtocol) {
+          emptyMsg += '<br><span style="color:#856404;"><strong>※ ファイルで直接開いていると予約は保存・表示されません。</strong> Webサーバー経由で開いてください。</span>';
+        } else {
+          emptyMsg += '<br><br>💡 <strong>InfinityFree環境の場合:</strong><br>';
+          emptyMsg += '- 予約が保存されているか確認: <code>data/sales-data.json</code> ファイルを確認<br>';
+          emptyMsg += '- APIが正しく動作しているか確認: ブラウザで <code>' + apiBase + 'sales-data.php?reservations=true</code> に直接アクセスしてJSONが返るか確認';
+        }
+        list.innerHTML = "<div style='color:#666; padding:15px; background:#f8f9fa; border:1px solid #ddd; border-radius:8px;'>" + emptyMsg + "</div>";
+        return;
+      }
+
+      // === フィルター ===
+      const dateEl = document.getElementById('admin-filter-date');
+      const modeEl = document.getElementById('admin-filter-mode');
+      const qEl = document.getElementById('admin-filter-q');
+      const selectedDate = (dateEl && dateEl.value) ? dateEl.value : getTodayIso();
+      const mode = modeEl ? modeEl.value : 'all'; // デフォルトを「すべて」に変更
+      const q = qEl ? String(qEl.value || '').trim().toLowerCase() : '';
+
+      const isVerifiedFn = (r) => r && (r.verified === true || r.verified === 'true' || r.verified === 1);
+
+      console.log('[管理画面デバッグ] 🔍 フィルター設定:', {
+        mode: mode,
+        selectedDate: selectedDate,
+        searchQuery: q,
+        totalReservations: reservations.length
+      });
+
+      let filtered = reservations;
+      if (mode === 'today') {
+        filtered = filtered.filter(r => String(r.date || '') === selectedDate);
+        console.log('[管理画面デバッグ] 📅 日付フィルター適用後:', filtered.length, '件（指定日:', selectedDate, '）');
+      } else if (mode === 'unverified') {
+        filtered = filtered.filter(r => !isVerifiedFn(r));
+        console.log('[管理画面デバッグ] 🔍 未認証フィルター適用後:', filtered.length, '件');
+      } else if (mode === 'verified') {
+        filtered = filtered.filter(r => isVerifiedFn(r));
+        console.log('[管理画面デバッグ] ✅ 認証済みフィルター適用後:', filtered.length, '件');
+      } else if (mode === 'all') {
+        console.log('[管理画面デバッグ] 📋 すべて表示モード（フィルターなし）');
+      }
+      if (q) {
+        const beforeSearch = filtered.length;
+        filtered = filtered.filter(r => {
+          const name = String(r.name || '').toLowerCase();
+          const cls = String(r.studentClass || '').toLowerCase();
+          const food = String(r.food || '').toLowerCase();
+          const num = (r.reservationNumber != null ? String(r.reservationNumber) : '');
+          return name.includes(q) || cls.includes(q) || food.includes(q) || num.includes(q);
+        });
+        console.log('[管理画面デバッグ] 🔎 検索フィルター適用後:', filtered.length, '件（検索前:', beforeSearch, '件, 検索語:', q, '）');
+      }
+
+      if (filtered.length === 0) {
+        let filterMsg = '';
+        if (reservations.length > 0) {
+          filterMsg = `<p style='color:#856404; font-weight:bold; margin-bottom:10px;'>⚠️ 全予約数: ${reservations.length}件ありますが、フィルター条件に一致する予約がありません。</p>`;
+          if (mode === 'today') {
+            filterMsg += `<p style='color:#666;'>💡 「表示」を「すべて」に変更するか、日付を変更してみてください。</p>`;
+            filterMsg += `<p style='color:#666; font-size:14px;'>現在の設定: 日付=${selectedDate}, 表示=${mode}</p>`;
+          } else {
+            filterMsg += `<p style='color:#666;'>💡 フィルター設定を変更してみてください。</p>`;
+            filterMsg += `<p style='color:#666; font-size:14px;'>現在の設定: 表示=${mode}${q ? ', 検索=' + q : ''}</p>`;
+          }
+        } else {
+          filterMsg = "<p style='color:#666;'>予約はありません（0件）。</p>";
+        }
+        list.innerHTML = "<div style='color:#666; padding:15px; background:#fff3cd; border:2px solid #ffc107; border-radius:8px;'>" + filterMsg + "</div>";
+        return;
+      }
+
+      // 日付・時間でソート（新しい順）
+      filtered = [...filtered].sort((a, b) => {
+        const dateA = (a.date || '') + ' ' + (a.time || '');
+        const dateB = (b.date || '') + ' ' + (b.time || '');
+        return dateB.localeCompare(dateA);
+      });
+
+      // 一覧表（誰が・何を・いつ予約したかが一目でわかる）
+      const verifiedCount = filtered.filter(isVerifiedFn).length;
+      const unverifiedCount = filtered.length - verifiedCount;
+      const tableRows = filtered.map(r => {
+        const name = escapeHtml(String(r.name || '').trim() || '—');
+        const cls = escapeHtml(String(r.studentClass || '').trim() || '—');
+        const food = escapeHtml(String(r.food || '').trim() || '—');
+        const date = escapeHtml(String(r.date || '—'));
+        const time = escapeHtml(String(r.time || '—'));
+        const num = r.reservationNumber != null ? r.reservationNumber : '—';
+        const isVerified = isVerifiedFn(r);
+        const verifiedMark = isVerified ? '<span style="color: #28a745;">✅</span>' : '—';
+        return `
+          <tr style="background-color: ${isVerified ? '#f0fff0' : '#fff'};">
+            <td style="border: 1px solid #ddd; padding: 10px;">${date}</td>
+            <td style="border: 1px solid #ddd; padding: 10px;">${time}</td>
+            <td style="border: 1px solid #ddd; padding: 10px; font-weight: bold;">${name}</td>
+            <td style="border: 1px solid #ddd; padding: 10px;">${cls}</td>
+            <td style="border: 1px solid #ddd; padding: 10px;">${food}</td>
+            <td style="border: 1px solid #ddd; padding: 10px;">${num}</td>
+            <td style="border: 1px solid #ddd; padding: 10px; text-align: center;">${verifiedMark}</td>
+          </tr>
+        `;
+      }).join('');
+
+      let html = `
+        <div style="margin-bottom: 20px;">
+          <h4 style="margin: 0 0 10px 0; color: #333;">📋 予約一覧（名前・メニュー・日付）</h4>
+          <p style="margin: 0 0 10px 0; color: #666; font-size: 14px;">
+            表示件数: <strong>${filtered.length}</strong> 件 / 全予約数: <strong>${reservations.length}</strong> 件（未認証: <strong>${unverifiedCount}</strong> / 認証済み: <strong>${verifiedCount}</strong>）
+            ${filtered.length < reservations.length ? `<span style="color:#856404;">⚠️ フィルターで ${reservations.length - filtered.length} 件が非表示</span>` : ''}
+          </p>
+          <div style="overflow-x: auto;">
+            <table style="width: 100%; border-collapse: collapse; min-width: 600px;">
+              <thead>
+                <tr style="background-color: #f8f9fa;">
+                  <th style="border: 1px solid #ddd; padding: 10px; text-align: left;">日付</th>
+                  <th style="border: 1px solid #ddd; padding: 10px; text-align: left;">時間</th>
+                  <th style="border: 1px solid #ddd; padding: 10px; text-align: left;">予約者名</th>
+                  <th style="border: 1px solid #ddd; padding: 10px; text-align: left;">クラス</th>
+                  <th style="border: 1px solid #ddd; padding: 10px; text-align: left;">予約メニュー</th>
+                  <th style="border: 1px solid #ddd; padding: 10px; text-align: left;">予約番号</th>
+                  <th style="border: 1px solid #ddd; padding: 10px; text-align: center;">認証</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${tableRows}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+
+      // メニュー別にグループ化（従来の表示も残す）
+      const grouped = {};
+      filtered.forEach(r => {
+        const foodKey = (r.food && String(r.food).trim()) ? r.food : '（メニュー未設定）';
+        if (!grouped[foodKey]) grouped[foodKey] = [];
+        grouped[foodKey].push(r);
+      });
+
+      Object.keys(grouped).forEach(food => {
+        grouped[food].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ja'));
+      });
+
+      const sortedFoods = Object.keys(grouped).sort();
+      html += '<h4 style="margin: 20px 0 10px 0; color: #333;">🍽️ メニュー別の人数</h4>';
+      html += sortedFoods.map(food => {
+        const reservationsForFood = grouped[food];
+        const verifiedCount = reservationsForFood.filter(isVerifiedFn).length;
+        const totalCount = reservationsForFood.length;
+
+        const peopleList = reservationsForFood.map(r => {
+          const isVerified = isVerifiedFn(r);
+          const displayName = escapeHtml(String(r.name || '').trim() || '（名前なし）');
+          const displayClass = escapeHtml(String(r.studentClass || '').trim());
+          const checkboxId = 'verified-' + (r.id || r.name || '') + '-' + (r.reservationNumber || '') + '-' + Math.random().toString(36).slice(2);
+          return `
+            <div style="display: flex; align-items: center; margin-bottom: 5px; padding: 5px; background-color: ${isVerified ? '#d4edda' : '#fff'}; border-radius: 4px; border: 1px solid ${isVerified ? '#c3e6cb' : '#ddd'};">
+              <input type="checkbox" id="${checkboxId}" ${isVerified ? 'checked' : ''} disabled style="margin-right: 10px; transform: scale(1.5); cursor: not-allowed; accent-color: #28a745;">
+              <label for="${checkboxId}" style="margin: 0; cursor: default; flex: 1; color: ${isVerified ? '#155724' : '#333'};">
+                <strong>${displayName}</strong>
+                ${displayClass ? ' <span style="color:#666;">（' + displayClass + '）</span>' : ''}
+                ${r.reservationNumber != null ? '（予約番号: ' + r.reservationNumber + '）' : ''}
+                ${r.date ? '　' + escapeHtml(r.date) : ''}
+                ${isVerified ? ' ✅' : ''}
+              </label>
+            </div>
+          `;
+        }).join('');
+
+        return `
+          <div style="margin-bottom: 15px; padding: 10px; border: 1px solid #ddd; border-radius: 8px;">
+            <h3 style="margin: 0 0 8px 0; font-size: 18px; color: #333;">🍽️ ${escapeHtml(food)}</h3>
+            <div style="margin-bottom: 8px;">
+              ${peopleList}
+            </div>
+            <p style="margin: 0; font-size: 16px; font-weight: bold; color: #e74c3c;">
+              👥 ${totalCount}人
+              ${verifiedCount > 0 ? '<span style="color: #28a745;">✅ 認証済み: ' + verifiedCount + '人</span>' : ''}
+            </p>
+          </div>
+        `;
+      }).join('');
+
+      list.innerHTML = html;
+    }
+
+    // === レビュー一覧 ===
+    async function loadReviews() {
+      try {
+        const reviews = await apiGet('reviews.php');
+        const list = document.getElementById("reviews-list");
+
+        if (!reviews || reviews.length === 0) {
+          list.innerHTML = "<p>レビューはありません。</p>";
+          return;
+        }
+
+        list.innerHTML = reviews.map(review => {
+          const name = review.name && review.name.trim() ? review.name : '匿名';
+          const date = review.date || '日付不明';
+          const comment = review.comment || '';
+
+          return `
+            <div style="margin-bottom: 15px; padding: 15px; border: 1px solid #ddd; border-radius: 8px; background-color: #f8f9fa;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <div>
+                  <strong style="font-size: 16px; color: #333;">${escapeHtml(name)}</strong>
+                  <span style="font-size: 14px; color: #666; margin-left: 10px;">${escapeHtml(date)}</span>
+                </div>
+                <button onclick="deleteReview(${review.id})" class="btn btn-danger" style="padding: 6px 12px; font-size: 14px;">削除</button>
+              </div>
+              <div style="color: #555; line-height: 1.6; white-space: pre-wrap; word-wrap: break-word;">${escapeHtml(comment)}</div>
+            </div>
+          `;
+        }).join('');
+      } catch (error) {
+        console.error('レビュー読み込みエラー:', error);
+        document.getElementById("reviews-list").innerHTML =
+          '<p style="color: red;">レビューの読み込みに失敗しました。</p>';
+      }
+    }
+
+    // HTMLエスケープ関数
+    function escapeHtml(text) {
+      if (text === null || text === undefined) return '';
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    function getTodayIso() {
+      const d = new Date();
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd}`;
+    }
+
+    // レビューを削除
+    async function deleteReview(reviewId) {
+      if (!confirm('このレビューを削除しますか？')) {
+        return;
+      }
+
+      try {
+        const response = await fetch('api/reviews.php', {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ id: reviewId })
+        });
+
+        if (!response.ok) {
+          throw new Error('レビューの削除に失敗しました');
+        }
+
+        alert('レビューを削除しました。');
+        loadReviews();
+      } catch (error) {
+        console.error('レビュー削除エラー:', error);
+        alert('レビューの削除に失敗しました。');
+      }
+    }
+
+
+    // === 予約時間管理 ===
+    let timeSlotCounter = 0;
+
+    function addTimeSlot(startTime = '', endTime = '') {
+      const container = document.getElementById('time-slots-container');
+      const slotId = `time-slot-${timeSlotCounter++}`;
+      const slotDiv = document.createElement('div');
+      slotDiv.id = slotId;
+      slotDiv.className = 'time-slot-item';
+      slotDiv.style.cssText = 'margin-bottom: 15px; padding: 15px; background-color: #f8f9fa; border-radius: 8px; border: 1px solid #e9ecef;';
+      slotDiv.innerHTML = `
+        <div style="display: flex; gap: 10px; align-items: flex-end;">
+          <div class="form-group" style="flex: 1;">
+            <label>開始時間:</label>
+            <input type="time" class="slot-start-time" value="${startTime}" required>
+          </div>
+          <div class="form-group" style="flex: 1;">
+            <label>終了時間:</label>
+            <input type="time" class="slot-end-time" value="${endTime}" required>
+          </div>
+          <button onclick="removeTimeSlot('${slotId}')" class="btn btn-danger" style="margin-bottom: 0;">削除</button>
+        </div>
+      `;
+      container.appendChild(slotDiv);
+    }
+
+    function removeTimeSlot(slotId) {
+      const slot = document.getElementById(slotId);
+      if (slot) {
+        slot.remove();
+      }
+    }
+
+    async function loadReservationTimes() {
+      try {
+        const times = await apiGet('reservation-times.php');
+        const displayDiv = document.getElementById('reservation-times-display');
+        const container = document.getElementById('time-slots-container');
+
+        // 後方互換性: 古い形式を新しい形式に変換
+        let timeSlots = [];
+        if (times) {
+          if (times.timeSlots && Array.isArray(times.timeSlots)) {
+            timeSlots = times.timeSlots;
+          } else if (times.startTime && times.endTime) {
+            timeSlots = [{ startTime: times.startTime, endTime: times.endTime }];
+          }
+        }
+
+        // 表示を更新
+        if (times && timeSlots.length > 0) {
+          const timeStrings = timeSlots.map(slot => `${slot.startTime} - ${slot.endTime}`).join(', ');
+          displayDiv.innerHTML = `
+            <div style="padding: 15px; background-color: #f8f9fa; border-radius: 8px; border: 1px solid #e9ecef;">
+              <p><strong>⏰ 予約可能時間:</strong> ${timeStrings}</p>
+              <p><strong>📝 状態:</strong> ${times.enabled ? '✅ 有効' : '❌ 無効'}</p>
+              <p><strong>💬 メッセージ:</strong> ${times.message || ''}</p>
+            </div>
+          `;
+
+          // フォームに現在の値を設定
+          container.innerHTML = '';
+          timeSlots.forEach(slot => {
+            addTimeSlot(slot.startTime || '', slot.endTime || '');
+          });
+          document.getElementById('reservation-message').value = times.message || '';
+        } else {
+          displayDiv.innerHTML = '<p style="color: #666;">予約時間が設定されていません</p>';
+          container.innerHTML = '';
+          addTimeSlot();
+        }
+      } catch (error) {
+        console.error('予約時間設定の読み込みエラー:', error);
+        document.getElementById('reservation-times-display').innerHTML =
+          '<p style="color: red;">予約時間設定の読み込みに失敗しました。</p>';
+      }
+    }
+
+    async function updateReservationTimes() {
+      const slotItems = document.querySelectorAll('.time-slot-item');
+      const timeSlots = [];
+
+      // 各時間帯を収集
+      for (const item of slotItems) {
+        const startTime = item.querySelector('.slot-start-time').value;
+        const endTime = item.querySelector('.slot-end-time').value;
+
+        if (!startTime || !endTime) {
+          alert('すべての時間帯の開始時間と終了時間を入力してください。');
+          return;
+        }
+
+        if (startTime >= endTime) {
+          alert('開始時間は終了時間より早く設定してください。');
+          return;
+        }
+
+        timeSlots.push({ startTime, endTime });
+      }
+
+      if (timeSlots.length === 0) {
+        alert('少なくとも1つの時間帯を設定してください。');
+        return;
+      }
+
+      const message = document.getElementById('reservation-message').value.trim();
+      const timeStrings = timeSlots.map(slot => `${slot.startTime}-${slot.endTime}`).join(', ');
+
+      try {
+        const data = {
+          timeSlots: timeSlots,
+          enabled: true, // 設定されたら自動的に有効
+          message: message || `予約時間: ${timeStrings}`
+        };
+
+        await apiPost('reservation-times.php', data);
+        alert('予約時間設定を更新しました！\n予約時間制限が自動的に有効になりました。');
+        loadReservationTimes();
+      } catch (error) {
+        console.error('予約時間設定の更新エラー:', error);
+        alert('予約時間設定の更新に失敗しました: ' + (error.message || ''));
+      }
+    }
+
+    // === 月間レポート ===
+    async function generateReport() {
+      const year = document.getElementById('report-year').value;
+      const month = document.getElementById('report-month').value;
+
+      try {
+        const response = await fetch(`api/monthly-report.php?year=${year}&month=${month}`);
+        const report = await response.json();
+
+        displayReport(report);
+      } catch (error) {
+        console.error('レポート生成エラー:', error);
+        alert('レポート生成に失敗しました。');
+      }
+    }
+
+    function generateMenuSalesTable(menuSales) {
+      const menuEntries = Object.entries(menuSales);
+
+      if (menuEntries.length === 0) {
+        return '<p>メニュー別売上データがありません。</p>';
+      }
+
+      // 売上数でソート（降順）
+      menuEntries.sort((a, b) => b[1] - a[1]);
+
+      return `
+        <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+          <tr style="background-color: #f8f9fa;">
+            <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">メニュー名</th>
+            <th style="border: 1px solid #ddd; padding: 8px; text-align: right;">売上数（個）</th>
+          </tr>
+          ${menuEntries.map(([menu, quantity]) => `
+            <tr>
+              <td style="border: 1px solid #ddd; padding: 8px;">${menu}</td>
+              <td style="border: 1px solid #ddd; padding: 8px; text-align: right; font-weight: bold;">${quantity}</td>
+            </tr>
+          `).join('')}
+        </table>
+      `;
+    }
+
+    function displayReport(report) {
+      const reportDiv = document.getElementById('report-display');
+
+      // メニュー別売上のトップ5
+      const topMenuItems = Object.entries(report.topMenu || {})
+        .map(([menu, quantity]) => `<li>${menu}: ${quantity}個</li>`)
+        .join('');
+
+      // 日別売上データ
+      const dailyData = report.dailySales || [];
+      const dailyTable = dailyData.length > 0 ? `
+        <div style="overflow-x: auto;">
+          <table style="width: 100%; border-collapse: collapse; margin-top: 10px; min-width: 600px;">
+            <tr style="background-color: #f8f9fa;">
+              <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">日付</th>
+              <th style="border: 1px solid #ddd; padding: 8px; text-align: right;">予約数</th>
+              <th style="border: 1px solid #ddd; padding: 8px; text-align: right;">来客数</th>
+              <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">メニュー別売上</th>
+            </tr>
+            ${dailyData.map(day => {
+        const menuSales = day.menuSales || {};
+        let menuSalesText = '';
+        if (Object.keys(menuSales).length > 0) {
+          const menuEntries = Object.entries(menuSales)
+            .sort((a, b) => b[1] - a[1])
+            .map(([menu, qty]) => `<span style="display: inline-block; margin-right: 10px; margin-bottom: 4px; padding: 3px 8px; background-color: #e3f2fd; border-radius: 4px; font-size: 12px;"><strong>${menu}</strong>: ${qty}個</span>`);
+          menuSalesText = menuEntries.join('');
+        } else {
+          menuSalesText = '<span style="color: #999;">データなし</span>';
+        }
+
+        return `
+              <tr>
+                <td style="border: 1px solid #ddd; padding: 8px; font-weight: bold;">${day.date}</td>
+                <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${day.reservations}人</td>
+                <td style="border: 1px solid #ddd; padding: 8px; text-align: right; font-weight: bold; color: #28a745;">${day.people}人</td>
+                <td style="border: 1px solid #ddd; padding: 8px; line-height: 1.8;">${menuSalesText}</td>
+              </tr>
+            `;
+      }).join('')}
+          </table>
+        </div>
+      ` : '<p>データがありません。</p>';
+
+      reportDiv.innerHTML = `
+        <div style="padding: 20px; background-color: #f8f9fa; border-radius: 8px; border: 1px solid #e9ecef; margin-top: 15px;">
+          <h3 style="color: #333; margin-top: 0;">📊 ${report.year}年${report.month}月 月間レポート</h3>
+          
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px;">
+            <div style="background: white; padding: 15px; border-radius: 8px; text-align: center;">
+              <h4 style="margin: 0 0 5px 0; color: #666;">総営業日数</h4>
+              <p style="font-size: 24px; font-weight: bold; color: #007bff; margin: 0;">${report.totalDays}日</p>
+            </div>
+            <div style="background: white; padding: 15px; border-radius: 8px; text-align: center;">
+              <h4 style="margin: 0 0 5px 0; color: #666;">総予約数</h4>
+              <p style="font-size: 24px; font-weight: bold; color: #28a745; margin: 0;">${report.totalReservations}人</p>
+            </div>
+            <div style="background: white; padding: 15px; border-radius: 8px; text-align: center;">
+              <h4 style="margin: 0 0 5px 0; color: #666;">総来客数</h4>
+              <p style="font-size: 24px; font-weight: bold; color: #dc3545; margin: 0;">${report.totalPeople}人</p>
+            </div>
+            <div style="background: white; padding: 15px; border-radius: 8px; text-align: center;">
+              <h4 style="margin: 0 0 5px 0; color: #666;">1日平均来客数</h4>
+              <p style="font-size: 24px; font-weight: bold; color: #ffc107; margin: 0;">${report.averageDailyPeople}人</p>
+            </div>
+          </div>
+          
+          <div style="margin-bottom: 20px;">
+            <h4>🏆 人気メニュー TOP5</h4>
+            <ul>${topMenuItems}</ul>
+          </div>
+          
+          <div style="margin-bottom: 20px;">
+            <h4>🍽️ メニュー別売上数</h4>
+            ${generateMenuSalesTable(report.menuSales || {})}
+          </div>
+          
+          <div style="margin-bottom: 20px;">
+            <h4>📅 日別売上データ</h4>
+            ${dailyTable}
+          </div>
+          
+          <div style="background: #e3f2fd; padding: 15px; border-radius: 8px;">
+            <h4 style="margin-top: 0;">📈 分析結果</h4>
+            <p><strong>最も忙しかった日:</strong> ${report.busiestDay || 'データなし'}</p>
+            <p><strong>最も忙しかった時間帯:</strong> ${report.busiestTimeSlot || 'データなし'}</p>
+          </div>
+        </div>
+      `;
+    }
+
+    async function downloadReport() {
+      const year = document.getElementById('report-year').value;
+      const month = document.getElementById('report-month').value;
+
+      try {
+        const response = await fetch(`api/monthly-report.php?year=${year}&month=${month}&format=csv`);
+        const csvData = await response.text();
+
+        // CSVファイルをダウンロード
+        const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        link.setAttribute('href', url);
+        link.setAttribute('download', `monthly_report_${year}_${month.toString().padStart(2, '0')}.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        alert('レポートをダウンロードしました！');
+      } catch (error) {
+        console.error('ダウンロードエラー:', error);
+        alert('ダウンロードに失敗しました。');
+      }
+    }
+
+    // === AI分析 ===
+    async function performAIAnalysis() {
+      const year = document.getElementById('ai-analysis-year').value;
+      const month = document.getElementById('ai-analysis-month').value;
+      const displayDiv = document.getElementById('ai-analysis-display');
+
+      // ローディング表示
+      displayDiv.innerHTML = `
+        <div style="padding: 20px; text-align: center; background-color: #f8f9fa; border-radius: 8px; border: 1px solid #e9ecef;">
+          <p style="font-size: 18px; color: #666;">🤖 AI分析を実行中...</p>
+          <p style="color: #999; margin-top: 10px;">しばらくお待ちください（30秒〜2分程度かかる場合があります）</p>
+        </div>
+      `;
+
+      try {
+        const response = await fetch(`api/ai-analysis.php?year=${year}&month=${month}`);
+        const result = await response.json();
+
+        if (result.error) {
+          displayDiv.innerHTML = `
+            <div style="padding: 20px; background-color: #fff3cd; border-radius: 8px; border: 1px solid #ffc107; margin-top: 15px;">
+              <h4 style="color: #856404; margin-top: 0;">⚠️ エラー</h4>
+              <p style="color: #856404;">${result.error}</p>
+              <p style="color: #856404; font-size: 14px; margin-top: 10px;">
+                AI APIの設定を確認してください。ollama-config.phpでOpenAI、Gemini、またはGroqのAPIキーを設定する必要があります。
+              </p>
+            </div>
+          `;
+          return;
+        }
+
+        if (result.analysis) {
+          // Markdown形式のテキストをHTMLに変換（簡易版）
+          let analysisHtml = result.analysis
+            .replace(/\n/g, '<br>')
+            .replace(/## (.*?)(<br>|$)/g, '<h3 style="color: #333; margin-top: 20px; margin-bottom: 10px;">$1</h3>')
+            .replace(/### (.*?)(<br>|$)/g, '<h4 style="color: #555; margin-top: 15px; margin-bottom: 8px;">$1</h4>')
+            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+            .replace(/✅/g, '<span style="color: #28a745;">✅</span>')
+            .replace(/🔧/g, '<span style="color: #ffc107;">🔧</span>')
+            .replace(/💡/g, '<span style="color: #17a2b8;">💡</span>')
+            .replace(/📊/g, '<span style="color: #007bff;">📊</span>');
+
+          displayDiv.innerHTML = `
+            <div style="padding: 20px; background-color: #f8f9fa; border-radius: 8px; border: 1px solid #e9ecef; margin-top: 15px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h3 style="color: #333; margin: 0;">🤖 AI分析結果 - ${year}年${month}月</h3>
+                <span style="font-size: 12px; color: #666; background-color: white; padding: 4px 8px; border-radius: 4px;">
+                  使用API: ${result.api || '不明'}
+                </span>
+              </div>
+              <div style="background-color: white; padding: 20px; border-radius: 8px; border: 1px solid #ddd; line-height: 1.8; color: #333;">
+                ${analysisHtml}
+              </div>
+            </div>
+          `;
+        } else {
+          displayDiv.innerHTML = `
+            <div style="padding: 20px; background-color: #fff3cd; border-radius: 8px; border: 1px solid #ffc107; margin-top: 15px;">
+              <h4 style="color: #856404; margin-top: 0;">⚠️ エラー</h4>
+              <p style="color: #856404;">分析結果を取得できませんでした。</p>
+            </div>
+          `;
+        }
+      } catch (error) {
+        console.error('AI分析エラー:', error);
+        displayDiv.innerHTML = `
+          <div style="padding: 20px; background-color: #f8d7da; border-radius: 8px; border: 1px solid #dc3545; margin-top: 15px;">
+            <h4 style="color: #721c24; margin-top: 0;">❌ エラー</h4>
+            <p style="color: #721c24;">AI分析の実行に失敗しました。</p>
+            <p style="color: #721c24; font-size: 14px; margin-top: 10px;">エラー詳細: ${error.message}</p>
+          </div>
+        `;
+      }
+    }
+
+    // === タブ切り替え ===
+    function switchTab(tabName, buttonElement) {
+      // すべてのタブコンテンツを非表示
+      document.querySelectorAll('.tab-content').forEach(content => {
+        content.classList.remove('active');
+      });
+
+      // すべてのタブボタンからactiveクラスを削除
+      document.querySelectorAll('.tab-button').forEach(button => {
+        button.classList.remove('active');
+      });
+
+      // 選択されたタブを表示
+      document.getElementById(`tab-${tabName}`).classList.add('active');
+
+      // クリックされたボタンにactiveクラスを追加
+      if (buttonElement) {
+        buttonElement.classList.add('active');
+      }
+    }
+
+    // === アコーディオン切り替え ===
+    function toggleAccordion(header) {
+      const content = header.nextElementSibling;
+      const isActive = content.classList.contains('active');
+
+      // すべてのアコーディオンを閉じる（オプション：他のアコーディオンを開いたままにする場合は削除）
+      // document.querySelectorAll('.accordion-content').forEach(acc => {
+      //   acc.classList.remove('active');
+      //   acc.previousElementSibling.classList.remove('active');
+      // });
+
+      if (isActive) {
+        content.classList.remove('active');
+        header.classList.remove('active');
+      } else {
+        content.classList.add('active');
+        header.classList.add('active');
+      }
+    }
+
+    // === シフト表管理 ===
+    async function addShift() {
+      const date = document.getElementById("shift-date").value;
+      const name = document.getElementById("shift-name").value.trim();
+      const startTime = document.getElementById("shift-start-time").value;
+      const endTime = document.getElementById("shift-end-time").value;
+      const role = document.getElementById("shift-role").value.trim();
+
+      if (!date || !name || !startTime || !endTime) {
+        return alert("日付、担当者名、開始時間、終了時間を入力してください。");
+      }
+
+      if (startTime >= endTime) {
+        return alert("開始時間は終了時間より早く設定してください。");
+      }
+
+      const shifts = await apiGet('shifts.php');
+
+      const newShift = {
+        id: Date.now(),
+        date: date,
+        name: name,
+        startTime: startTime,
+        endTime: endTime,
+        role: role || ''
+      };
+
+      shifts.push(newShift);
+      await apiPost('shifts.php', shifts);
+
+      document.getElementById("shift-date").value = "";
+      document.getElementById("shift-name").value = "";
+      document.getElementById("shift-start-time").value = "";
+      document.getElementById("shift-end-time").value = "";
+      document.getElementById("shift-role").value = "";
+      loadShifts();
+    }
+
+    // 従業員名リストを管理
+    let employeeNamesList = [];
+
+    async function loadEmployeeNames() {
+      const shifts = await apiGet('shifts.php');
+      const existingNames = [...new Set(shifts.map(s => s.name))];
+
+      // ローカルストレージから従業員名リストを取得
+      const storedNames = localStorage.getItem('shift_employee_names');
+      if (storedNames) {
+        const parsedNames = JSON.parse(storedNames);
+        employeeNamesList = [...new Set([...parsedNames, ...existingNames])].sort();
+      } else {
+        employeeNamesList = existingNames.sort();
+      }
+    }
+
+    async function addEmployeeName() {
+      const nameInput = document.getElementById("shift-employee-name");
+      const name = nameInput.value.trim();
+
+      if (!name) {
+        return alert("従業員名を入力してください。");
+      }
+
+      if (employeeNamesList.includes(name)) {
+        return alert("この従業員名は既に登録されています。");
+      }
+
+      employeeNamesList.push(name);
+      employeeNamesList.sort();
+
+      // ローカルストレージに保存
+      localStorage.setItem('shift_employee_names', JSON.stringify(employeeNamesList));
+
+      nameInput.value = "";
+      loadShifts();
+    }
+
+    async function loadShifts() {
+      await loadEmployeeNames();
+      const shifts = await apiGet('shifts.php');
+      const list = document.getElementById("shifts-list");
+      const monthInput = document.getElementById("shift-display-month");
+
+      // 現在の月を設定（初回のみ）
+      if (!monthInput.value) {
+        const today = new Date();
+        monthInput.value = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+      }
+
+      const selectedMonth = monthInput.value;
+      const [year, month] = selectedMonth.split('-').map(Number);
+
+      // 月の日数を取得
+      const daysInMonth = new Date(year, month, 0).getDate();
+
+      // 選択された月のシフトをフィルタリング
+      const monthShifts = shifts.filter(shift => {
+        const shiftDate = new Date(shift.date);
+        return shiftDate.getFullYear() === year && shiftDate.getMonth() + 1 === month;
+      });
+
+      // 従業員名のリストを使用（シフトがない従業員も表示）
+      if (employeeNamesList.length === 0) {
+        list.innerHTML = `<p style="padding: 20px; text-align: center; color: #666;">従業員名を追加してください。従業員名を追加すると、シフト表が表示されます。</p>`;
+        return;
+      }
+
+      // 日付ごとのシフトを整理
+      const shiftsByDateAndName = {};
+      monthShifts.forEach(shift => {
+        const day = new Date(shift.date).getDate();
+        if (!shiftsByDateAndName[day]) {
+          shiftsByDateAndName[day] = {};
+        }
+        if (!shiftsByDateAndName[day][shift.name]) {
+          shiftsByDateAndName[day][shift.name] = [];
+        }
+        shiftsByDateAndName[day][shift.name].push(shift);
+      });
+
+      // 横の表形式で表示
+      let html = '<div style="overflow-x: auto; margin-top: 15px;">';
+      html += '<table style="border-collapse: collapse; font-size: 12px; min-width: 1200px;">';
+
+      // ヘッダー行1: 日付
+      html += '<tr style="background-color: #f0f0f0;">';
+      html += '<th style="border: 1px solid #ccc; padding: 8px; text-align: center; position: sticky; left: 0; background-color: #f0f0f0; z-index: 10;">氏名</th>';
+      for (let day = 1; day <= daysInMonth; day++) {
+        const date = new Date(year, month - 1, day);
+        const dayOfWeek = ['日', '月', '火', '水', '木', '金', '土'][date.getDay()];
+        const isWeekend = dayOfWeek === '日' || dayOfWeek === '土';
+        html += `<th style="border: 1px solid #ccc; padding: 4px; text-align: center; min-width: 30px; ${isWeekend ? 'background-color: #fff5f5;' : ''}">${day}</th>`;
+      }
+      html += '<th style="border: 1px solid #ccc; padding: 8px; text-align: center; background-color: #e8f4f8;">合計<br>出勤日数</th>';
+      html += '<th style="border: 1px solid #ccc; padding: 8px; text-align: center; position: sticky; right: 0; background-color: #f0f0f0; z-index: 10;">操作</th>';
+      html += '</tr>';
+
+      // ヘッダー行2: 曜日
+      html += '<tr style="background-color: #f8f8f8;">';
+      html += '<th style="border: 1px solid #ccc; padding: 4px; text-align: center; position: sticky; left: 0; background-color: #f8f8f8; z-index: 10;"></th>';
+      for (let day = 1; day <= daysInMonth; day++) {
+        const date = new Date(year, month - 1, day);
+        const dayOfWeek = ['日', '月', '火', '水', '木', '金', '土'][date.getDay()];
+        const isWeekend = dayOfWeek === '日' || dayOfWeek === '土';
+        html += `<th style="border: 1px solid #ccc; padding: 2px; text-align: center; font-size: 10px; ${isWeekend ? 'background-color: #fff5f5; color: #d00;' : ''}">${dayOfWeek}</th>`;
+      }
+      html += '<th style="border: 1px solid #ccc; padding: 4px; text-align: center; background-color: #e8f4f8;"></th>';
+      html += '<th style="border: 1px solid #ccc; padding: 4px; text-align: center; position: sticky; right: 0; background-color: #f8f8f8; z-index: 10;"></th>';
+      html += '</tr>';
+
+      // 従業員ごとの行
+      employeeNamesList.forEach((name, nameIndex) => {
+        let attendanceDays = 0;
+
+        // 通常シフト行
+        html += '<tr>';
+        html += `<td style="border: 1px solid #ccc; padding: 6px; text-align: left; position: sticky; left: 0; background-color: white; z-index: 5; font-weight: bold;">${escapeHtml(name)}<br><small style="color: #666;">通常</small></td>`;
+
+        for (let day = 1; day <= daysInMonth; day++) {
+          const date = new Date(year, month - 1, day);
+          const dayOfWeek = ['日', '月', '火', '水', '木', '金', '土'][date.getDay()];
+          const isWeekend = dayOfWeek === '日' || dayOfWeek === '土';
+          const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+
+          const dayShifts = shiftsByDateAndName[day]?.[name] || [];
+          const normalShifts = dayShifts.filter(s => !s.symbol || (s.symbol !== 'H' && s.role !== 'H残業'));
+
+          let cellContent = '';
+          let currentSymbol = '';
+          if (normalShifts.length > 0) {
+            attendanceDays++;
+            const shift = normalShifts[0];
+            currentSymbol = shift.symbol || (shift.role || '〇');
+            cellContent = escapeHtml(currentSymbol);
+            if (normalShifts.length > 1) {
+              cellContent += `(${normalShifts.length})`;
+            }
+          }
+
+          html += `<td onclick="openShiftSymbolSelector('${escapeHtml(name)}', '${dateStr}', 'normal', ${day}, '${currentSymbol}')" style="border: 1px solid #ccc; padding: 4px; text-align: center; cursor: pointer; ${isWeekend ? 'background-color: #fff5f5;' : ''} min-height: 30px;" title="クリックして記号を選択">${cellContent || '&nbsp;'}</td>`;
+        }
+
+        html += `<td style="border: 1px solid #ccc; padding: 6px; text-align: center; background-color: #e8f4f8; font-weight: bold;">${attendanceDays}日</td>`;
+
+        // 操作列（最初の行のみ）
+        if (nameIndex === 0) {
+          html += `<td rowspan="${employeeNamesList.length * 2}" style="border: 1px solid #ccc; padding: 8px; text-align: center; position: sticky; right: 0; background-color: white; z-index: 5; vertical-align: top;">
+            <button onclick="deleteAllShiftsForEmployee('${escapeHtml(name)}', ${year}, ${month})" class="btn btn-danger" style="padding: 4px 8px; font-size: 11px; margin-bottom: 5px;">全削除</button>
+          </td>`;
+        }
+        html += '</tr>';
+
+        // H残業行（常に表示）
+        const hasOvertime = monthShifts.some(s => s.name === name && (s.symbol === 'H' || s.role === 'H残業'));
+        // 常にH残業行を表示
+        {
+          html += '<tr>';
+          html += `<td style="border: 1px solid #ccc; padding: 6px; text-align: left; position: sticky; left: 0; background-color: #fafafa; z-index: 5;"><small style="color: #666;">H残業</small></td>`;
+
+          for (let day = 1; day <= daysInMonth; day++) {
+            const date = new Date(year, month - 1, day);
+            const dayOfWeek = ['日', '月', '火', '水', '木', '金', '土'][date.getDay()];
+            const isWeekend = dayOfWeek === '日' || dayOfWeek === '土';
+
+            const dayShifts = shiftsByDateAndName[day]?.[name] || [];
+            const overtimeShifts = dayShifts.filter(s => s.symbol === 'H' || s.role === 'H残業');
+
+            let cellContent = '';
+            let currentSymbol = '';
+            if (overtimeShifts.length > 0) {
+              currentSymbol = 'H';
+              cellContent = 'H';
+              if (overtimeShifts.length > 1) {
+                cellContent += `(${overtimeShifts.length})`;
+              }
+            }
+
+            const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            html += `<td onclick="openShiftSymbolSelector('${escapeHtml(name)}', '${dateStr}', 'overtime', ${day}, '${currentSymbol}')" style="border: 1px solid #ccc; padding: 4px; text-align: center; background-color: #fafafa; cursor: pointer; ${isWeekend ? 'background-color: #fff5f5;' : ''} min-height: 30px;" title="クリックして記号を選択">${cellContent || '&nbsp;'}</td>`;
+          }
+
+          html += '<td style="border: 1px solid #ccc; padding: 6px; text-align: center; background-color: #e8f4f8;"></td>';
+          html += '</tr>';
+        }
+      });
+
+      html += '</table></div>';
+      list.innerHTML = html;
+    }
+
+    // 記号選択ポップアップを表示
+    function openShiftSymbolSelector(name, date, type, day, currentSymbol) {
+      const symbols = [
+        { value: '〇', label: '〇（出勤）' },
+        { value: 'X', label: 'X（休み）' },
+        { value: '受', label: '受（受付）' },
+        { value: '1', label: '1' },
+        { value: '2', label: '2' },
+        { value: '3', label: '3' },
+        { value: 'H', label: 'H（残業）', onlyOvertime: true }
+      ];
+
+      // 通常シフト行の場合はHを除外
+      const availableSymbols = type === 'normal'
+        ? symbols.filter(s => !s.onlyOvertime)
+        : symbols;
+
+      let optionsHtml = availableSymbols.map(s => {
+        const selected = currentSymbol === s.value ? '✓' : '';
+        return `<div onclick="selectShiftSymbol('${escapeHtml(name)}', '${date}', '${type}', ${day}, '${s.value}')" style="padding: 10px; cursor: pointer; border: 1px solid #ddd; margin: 2px; border-radius: 4px; display: inline-block; min-width: 60px; text-align: center; ${selected ? 'background-color: #e3f2fd; font-weight: bold;' : ''}" onmouseover="this.style.backgroundColor='#f0f0f0'" onmouseout="this.style.backgroundColor='${selected ? '#e3f2fd' : 'white'}'">${s.value} ${selected}</div>`;
+      }).join('');
+
+      optionsHtml += `<div onclick="selectShiftSymbol('${escapeHtml(name)}', '${date}', '${type}', ${day}, '')" style="padding: 10px; cursor: pointer; border: 1px solid #ddd; margin: 2px; border-radius: 4px; display: inline-block; min-width: 60px; text-align: center; ${!currentSymbol ? 'background-color: #e3f2fd; font-weight: bold;' : ''}" onmouseover="this.style.backgroundColor='#f0f0f0'" onmouseout="this.style.backgroundColor='${!currentSymbol ? '#e3f2fd' : 'white'}'">削除</div>`;
+
+      const popup = document.createElement('div');
+      popup.id = 'shift-symbol-popup';
+      popup.style.cssText = 'position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; border: 2px solid #007bff; border-radius: 8px; padding: 20px; z-index: 10000; box-shadow: 0 4px 20px rgba(0,0,0,0.3); max-width: 500px;';
+      popup.innerHTML = `
+        <h3 style="margin-top: 0;">記号を選択</h3>
+        <p style="margin-bottom: 15px; color: #666;">${escapeHtml(name)} - ${date}</p>
+        <div style="display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 15px;">
+          ${optionsHtml}
+        </div>
+        <button onclick="closeShiftSymbolPopup()" class="btn btn-secondary" style="width: 100%;">キャンセル</button>
+      `;
+
+      const overlay = document.createElement('div');
+      overlay.id = 'shift-symbol-overlay';
+      overlay.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999;';
+      overlay.onclick = closeShiftSymbolPopup;
+
+      document.body.appendChild(overlay);
+      document.body.appendChild(popup);
+    }
+
+    function closeShiftSymbolPopup() {
+      const popup = document.getElementById('shift-symbol-popup');
+      const overlay = document.getElementById('shift-symbol-overlay');
+      if (popup) popup.remove();
+      if (overlay) overlay.remove();
+    }
+
+    async function selectShiftSymbol(name, date, type, day, symbol) {
+      closeShiftSymbolPopup();
+
+      const shifts = await apiGet('shifts.php');
+      const monthInput = document.getElementById("shift-display-month");
+      const [year, month] = monthInput.value.split('-').map(Number);
+
+      // 既存のシフトを削除（同じ日付、名前、タイプのもの）
+      const filteredShifts = shifts.filter(shift => {
+        const shiftDate = new Date(shift.date);
+        const shiftDay = shiftDate.getDate();
+        const shiftYear = shiftDate.getFullYear();
+        const shiftMonth = shiftDate.getMonth() + 1;
+
+        if (shift.name !== name || shiftYear !== year || shiftMonth !== month || shiftDay !== day) {
+          return true;
+        }
+
+        // タイプに応じてフィルタリング
+        if (type === 'normal') {
+          return shift.symbol === 'H' || shift.role === 'H残業';
+        } else {
+          return shift.symbol !== 'H' && shift.role !== 'H残業';
+        }
+      });
+
+      // 新しいシフトを追加（記号が選択されている場合）
+      if (symbol) {
+        const newShift = {
+          id: Date.now(),
+          date: date,
+          name: name,
+          startTime: '09:00',
+          endTime: '18:00',
+          symbol: symbol,
+          role: symbol === 'H' ? 'H残業' : (symbol === '受' ? '受付' : '')
+        };
+        filteredShifts.push(newShift);
+      }
+
+      await apiPost('shifts.php', filteredShifts);
+      loadShifts();
+    }
+
+    async function deleteAllShiftsForEmployee(name, year, month) {
+      if (!confirm(`「${name}」さんの${year}年${month}月のシフトをすべて削除しますか？`)) return;
+
+      const shifts = await apiGet('shifts.php');
+      const filtered = shifts.filter(shift => {
+        const shiftDate = new Date(shift.date);
+        return !(shift.name === name && shiftDate.getFullYear() === year && shiftDate.getMonth() + 1 === month);
+      });
+
+      await apiPost('shifts.php', filtered);
+      loadShifts();
+    }
+
+    async function deleteShift(shiftId) {
+      if (!confirm('このシフトを削除しますか？')) return;
+
+      const shifts = await apiGet('shifts.php');
+      const filtered = shifts.filter(s => s.id !== shiftId);
+      await apiPost('shifts.php', filtered);
+      loadShifts();
+    }
+
+    // === AIアドバイス機能 ===
+    async function uploadExcelFile() {
+      const fileInput = document.getElementById('excel-file');
+      const file = fileInput.files[0];
+
+      if (!file) {
+        alert('ファイルを選択してください');
+        return;
+      }
+
+      const statusDiv = document.getElementById('excel-upload-status');
+      statusDiv.innerHTML = '<p style="color: #666;">アップロード中...</p>';
+
+      try {
+        // ファイルを読み込む（CSV形式として扱う）
+        const reader = new FileReader();
+        reader.onload = async function (e) {
+          try {
+            const text = e.target.result;
+            const lines = text.split('\n').filter(line => line.trim());
+
+            // CSVデータを解析（「メニュー合計」行から来客数を抽出、曜日情報も取得）
+            const attendanceData = [];
+            const attendanceDataWithDays = [];
+            const dayNames = ['日', '月', '火', '水', '木', '金', '土'];
+
+            // 曜日情報を取得（2行目に曜日が記載されている）
+            let dayRowIndex = -1;
+            for (let i = 0; i < lines.length; i++) {
+              const line = lines[i];
+              const columns = line.split(',');
+              // 2列目が空で、3列目以降に曜日がある行を探す
+              if (columns.length > 2 && columns[0].trim() === '' && columns[1].trim() === '' && dayNames.includes(columns[2].trim())) {
+                dayRowIndex = i;
+                break;
+              }
+            }
+
+            for (let i = 0; i < lines.length; i++) {
+              const line = lines[i];
+              const columns = line.split(',');
+
+              // 「メニュー合計」行を探す
+              if (columns.length > 1 && columns[1].trim() === 'メニュー合計') {
+                // 曜日情報を取得（同じセクションの曜日行から）
+                let sectionDayRow = null;
+                // この「メニュー合計」行より前の曜日行を探す
+                for (let k = Math.max(0, i - 30); k < i; k++) {
+                  const checkLine = lines[k];
+                  const checkColumns = checkLine.split(',');
+                  if (checkColumns.length > 2 && checkColumns[0].trim() === '' && checkColumns[1].trim() === '' && dayNames.includes(checkColumns[2].trim())) {
+                    sectionDayRow = checkColumns;
+                    break;
+                  }
+                }
+
+                // 3列目以降から数値を抽出（日付列と「メニュー合計」列をスキップ）
+                for (let j = 2; j < columns.length; j++) {
+                  const value = columns[j].trim();
+
+                  // 数値または「✕」以外の空でない値をチェック
+                  // 0も有効な来客数データとして扱う（営業していない日など）
+                  if (value && value !== '✕' && value !== '') {
+                    const num = parseInt(value);
+                    if (!isNaN(num) && num >= 0) {
+                      attendanceData.push(num);
+
+                      // 曜日情報も保存
+                      let day = null;
+                      if (sectionDayRow && j < sectionDayRow.length) {
+                        const dayValue = sectionDayRow[j].trim();
+                        if (dayNames.includes(dayValue)) {
+                          day = dayValue;
+                        }
+                      }
+
+                      attendanceDataWithDays.push({
+                        attendance: num,
+                        day: day
+                      });
+                    }
+                  }
+                }
+              }
+            }
+
+            if (attendanceData.length === 0) {
+              throw new Error('「メニュー合計」行から有効な来客数データが見つかりませんでした。CSVファイルの形式を確認してください。');
+            }
+
+            // JSONファイルとして保存（曜日情報も含む）
+            const data = {
+              attendance: attendanceData,
+              attendanceWithDays: attendanceDataWithDays,
+              uploaded_at: new Date().toISOString(),
+              total_records: attendanceData.length
+            };
+
+            // データをAPI経由で保存（簡易版：直接fetchで保存）
+            const response = await fetch('api/attendance-data.php', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(data)
+            });
+
+            if (!response.ok) {
+              throw new Error('データの保存に失敗しました');
+            }
+
+            statusDiv.innerHTML = `<p style="color: #28a745;">✅ アップロード成功！${attendanceData.length}件のデータを登録しました。</p>`;
+            loadAttendanceData();
+          } catch (error) {
+            console.error('ファイル処理エラー:', error);
+            statusDiv.innerHTML = `<p style="color: #dc3545;">❌ エラー: ${error.message}</p>`;
+          }
+        };
+        reader.readAsText(file);
+      } catch (error) {
+        console.error('ファイル読み込みエラー:', error);
+        statusDiv.innerHTML = `<p style="color: #dc3545;">❌ エラー: ${error.message}</p>`;
+      }
+    }
+
+    async function loadAttendanceData() {
+      try {
+        const response = await fetch('api/attendance-data.php');
+        if (!response.ok) {
+          throw new Error('データの読み込みに失敗しました');
+        }
+        const data = await response.json();
+        const displayDiv = document.getElementById('attendance-data-display');
+
+        if (data.attendance && data.attendance.length > 0) {
+          const avg = Math.round(data.attendance.reduce((a, b) => a + b, 0) / data.attendance.length);
+          const max = Math.max(...data.attendance);
+          const min = Math.min(...data.attendance);
+
+          displayDiv.innerHTML = `
+            <div style="padding: 15px; background-color: #f8f9fa; border-radius: 8px; border: 1px solid #e9ecef;">
+              <p><strong>📊 データ件数:</strong> ${data.attendance.length}件</p>
+              <p><strong>📈 平均来客数:</strong> ${avg}人</p>
+              <p><strong>📊 最大来客数:</strong> ${max}人</p>
+              <p><strong>📉 最小来客数:</strong> ${min}人</p>
+              ${data.uploaded_at ? `<p><strong>📅 最終更新:</strong> ${new Date(data.uploaded_at).toLocaleString('ja-JP')}</p>` : ''}
+            </div>
+          `;
+        } else {
+          displayDiv.innerHTML = '<p style="color: #666;">来客数データが登録されていません</p>';
+        }
+      } catch (error) {
+        console.error('来客数データの読み込みエラー:', error);
+        document.getElementById('attendance-data-display').innerHTML =
+          '<p style="color: red;">データの読み込みに失敗しました</p>';
+      }
+    }
+
+    let currentMenuAdvice = null;
+    let menuChatHistory = [];
+
+    async function getMenuAdvice() {
+      const displayDiv = document.getElementById('menu-advice-display');
+      const chatDiv = document.getElementById('menu-advice-chat');
+      displayDiv.innerHTML = '<p style="color: #666;">🤖 AIがメニューを提案しています...</p>';
+
+      try {
+        const response = await fetch('api/ai-advice.php?action=menu');
+        if (!response.ok) {
+          throw new Error('API呼び出しに失敗しました');
+        }
+        const data = await response.json();
+
+        if (data.error) {
+          displayDiv.innerHTML = `<p style="color: #dc3545;">❌ エラー: ${data.error}</p>`;
+          return;
+        }
+
+        // 現在のメニュー提案を保存
+        currentMenuAdvice = data.advice;
+        menuChatHistory = [];
+
+        // 改行を保持して表示し、作り方を強調
+        let adviceText = data.advice;
+
+        // 【作り方】セクションを見やすくスタイリング
+        adviceText = adviceText.replace(/\n【作り方】/g, '\n\n<strong style="color: #667eea; font-size: 1.1em;">📝 【作り方】</strong>');
+        adviceText = adviceText.replace(/\n(\d+)\./g, '\n<span style="color: #495057; font-weight: bold;">$1.</span>');
+
+        // メニュー名を強調
+        adviceText = adviceText.replace(/\n(どんぶり|主菜|副菜|味噌汁)：([^\n]+)/g, '\n<strong style="color: #28a745; font-size: 1.05em;">$1：</strong>$2');
+
+        // 予算を強調
+        adviceText = adviceText.replace(/予算：([^\n]+)/g, '<strong style="color: #dc3545;">💰 予算：</strong>$1');
+
+        // 改行を<br>に変換
+        adviceText = adviceText.replace(/\n/g, '<br>');
+
+        displayDiv.innerHTML = `
+          <div style="line-height: 1.8; padding: 15px; background-color: #ffffff; border-radius: 8px; border: 1px solid #e9ecef;">
+            <div style="white-space: pre-wrap;">
+              ${adviceText}
+            </div>
+          </div>
+        `;
+
+        // チャット機能を表示
+        chatDiv.style.display = 'block';
+        document.getElementById('menu-chat-messages').innerHTML = '';
+      } catch (error) {
+        console.error('メニュー提案エラー:', error);
+        displayDiv.innerHTML = `<p style="color: #dc3545;">❌ エラー: ${error.message}</p>`;
+      }
+    }
+
+    async function sendMenuChatMessage() {
+      if (!currentMenuAdvice) {
+        alert('まずメニュー提案を取得してください');
+        return;
+      }
+
+      const input = document.getElementById('menu-chat-input');
+      const message = input.value.trim();
+      if (!message) return;
+
+      const chatMessages = document.getElementById('menu-chat-messages');
+
+      // ユーザーメッセージを表示
+      chatMessages.innerHTML += `
+        <div style="margin-bottom: 10px; text-align: right;">
+          <div style="display: inline-block; padding: 8px 12px; background-color: #667eea; color: white; border-radius: 12px; max-width: 70%;">
+            ${message}
+          </div>
+        </div>
+      `;
+
+      input.value = '';
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+
+      // チャット履歴に追加
+      menuChatHistory.push({ role: 'user', content: message });
+
+      // AI応答を取得
+      try {
+        // システムプロンプトを含む最初のメッセージを構築
+        const systemMessage = `あなたは学校食堂のメニュー提案の専門家です。以下のメニュー提案について、ユーザーの質問に詳しく、わかりやすく答えてください。\n\n【メニュー提案】\n${currentMenuAdvice}\n\nユーザーの質問に対して、メニューの作り方、材料、調理のコツ、栄養価、予算内での調整方法など、具体的で実用的な情報を提供してください。`;
+
+        // チャット履歴を構築（システムメッセージを最初に追加）
+        const historyForAPI = menuChatHistory.slice(-6).map(msg => ({
+          role: msg.role,
+          content: msg.content
+        }));
+
+        // 最初のメッセージにシステムプロンプトを含める
+        if (historyForAPI.length === 0 || historyForAPI[0].role !== 'system') {
+          historyForAPI.unshift({ role: 'system', content: systemMessage });
+        } else {
+          historyForAPI[0].content = systemMessage;
+        }
+
+        const response = await fetch('api/ai-response.php', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            message: message,
+            history: historyForAPI,
+            useOllama: true
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error('API呼び出しに失敗しました');
+        }
+
+        const data = await response.json();
+
+        if (data.response) {
+          // AI応答を表示
+          chatMessages.innerHTML += `
+            <div style="margin-bottom: 10px;">
+              <div style="display: inline-block; padding: 8px 12px; background-color: #f0f0f0; color: #333; border-radius: 12px; max-width: 70%;">
+                ${data.response.replace(/\n/g, '<br>')}
+              </div>
+            </div>
+          `;
+
+          // チャット履歴に追加
+          menuChatHistory.push({ role: 'assistant', content: data.response });
+          chatMessages.scrollTop = chatMessages.scrollHeight;
+        } else {
+          throw new Error('AI応答が取得できませんでした');
+        }
+      } catch (error) {
+        console.error('チャットエラー:', error);
+        chatMessages.innerHTML += `
+          <div style="margin-bottom: 10px;">
+            <div style="display: inline-block; padding: 8px 12px; background-color: #f8d7da; color: #721c24; border-radius: 12px; max-width: 70%;">
+              ❌ エラー: ${error.message}
+            </div>
+          </div>
+        `;
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+      }
+    }
+
+    // Enterキーで送信
+    document.addEventListener('DOMContentLoaded', function () {
+      const menuChatInput = document.getElementById('menu-chat-input');
+      if (menuChatInput) {
+        menuChatInput.addEventListener('keypress', function (e) {
+          if (e.key === 'Enter') {
+            sendMenuChatMessage();
+          }
+        });
+      }
+    });
+
+    async function getAttendancePrediction() {
+      const displayDiv = document.getElementById('attendance-prediction-display');
+      displayDiv.innerHTML = '<p style="color: #666;">🤖 AIが来客数を予測しています...</p>';
+
+      try {
+        const response = await fetch('api/ai-advice.php?action=attendance');
+        if (!response.ok) {
+          throw new Error('API呼び出しに失敗しました');
+        }
+        const data = await response.json();
+
+        if (data.error) {
+          displayDiv.innerHTML = `<p style="color: #dc3545;">❌ エラー: ${data.error}</p>`;
+          return;
+        }
+
+        // 予測結果を表示
+        let predictionText = '';
+        if (typeof data.prediction === 'string') {
+          predictionText = data.prediction.replace(/\n/g, '<br>');
+        } else {
+          predictionText = `予測来客数: 約${data.prediction}人<br>${data.details || ''}`;
+        }
+
+        displayDiv.innerHTML = `
+          <div style="white-space: pre-wrap; line-height: 1.8;">
+            ${predictionText}
+          </div>
+        `;
+      } catch (error) {
+        console.error('来客数予測エラー:', error);
+        displayDiv.innerHTML = `<p style="color: #dc3545;">❌ エラー: ${error.message}</p>`;
+      }
+    }
+
+    // === 起動時 ===
+    function renderLinks() {
+      const base = window.location.href.replace(/[^/]*$/, '');
+      const pages = [
+        { name: '生徒用サイト (index.html)', file: 'index.html' },
+        { name: '管理者サイト (admin.html)', file: 'admin.html' },
+        { name: '予約サイト (book.html)', file: 'book.html' },
+        { name: '予約確認システム (verification.html)', file: 'verification.html' },
+        { name: 'レビュー投稿 (review.html)', file: 'review.html' },
+        { name: '食堂専用AIアシスタント (ai-assistant-php.html)', file: 'ai-assistant-php.html' }
+      ];
+      const linksDiv = document.getElementById('page-links');
+      if (!linksDiv) return;
+      linksDiv.innerHTML = pages.map(p => {
+        const url = base + p.file;
+        return `<p><strong>${p.name}:</strong> <a href="${url}">${url}</a></p>`;
+      }).join('');
+    }
+
+    // 背景画像のキャッシュ対策
+    document.addEventListener('DOMContentLoaded', function () {
+      const pageBg = document.querySelector('.page-bg');
+      if (pageBg) {
+        const timestamp = new Date().getTime();
+        pageBg.style.backgroundImage = `url('images/olive.jpg?v=${timestamp}')`;
+      }
+    });
+
+    window.onload = function () {
+      // 予約フィルター初期化（デフォルトは「すべて」表示）
+      const dateEl = document.getElementById('admin-filter-date');
+      if (dateEl && !dateEl.value) dateEl.value = getTodayIso();
+      const modeEl = document.getElementById('admin-filter-mode');
+      if (modeEl && !modeEl.value) modeEl.value = 'all'; // デフォルトを「すべて」に設定
+      const qEl = document.getElementById('admin-filter-q');
+      const reloadReservations = () => loadReservations();
+      if (dateEl) dateEl.addEventListener('change', reloadReservations);
+      if (modeEl) modeEl.addEventListener('change', reloadReservations);
+      if (qEl) qEl.addEventListener('input', reloadReservations);
+
+      // データを読み込み
+      loadMenus();
+      loadHolidays();
+      loadDailyMenus();
+      loadEvents();
+      loadReservations();
+      loadReviews();
+      loadReservationTimes();
+      loadShifts();
+      loadAttendanceData();
+      renderCalendar();
+      renderLinks();
+
+      // 現在の月を選択
+      const currentMonth = new Date().getMonth() + 1;
+      document.getElementById('report-month').value = currentMonth;
+      document.getElementById('ai-analysis-month').value = currentMonth;
+
+      // 予約一覧を30秒ごとに自動更新
+      setInterval(() => {
+        loadReservations();
+      }, 30000); // 30秒
+
+      // レビュー一覧を60秒ごとに自動更新
+      setInterval(() => {
+        loadReviews();
+      }, 60000); // 60秒
+    };
+  </script>
+</body>
+
+</html>

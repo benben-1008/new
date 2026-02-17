@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>アレルギー情報 - OliMeal</title>
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    /* 背景画像設定（olive） */
+    .page-bg {
+      background-image: url('images/olive.jpg');
+      background-size: cover;
+      background-position: center;
+      background-attachment: fixed;
+    }
+
+    /* 可読性を保つための半透明背景 */
+    .container {
+      background-color: rgba(255, 255, 255, 0.92);
+    }
+
+    .allergy-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 20px 0;
+      background-color: white;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .allergy-table thead {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+
+    .allergy-table th {
+      padding: 15px;
+      text-align: left;
+      font-weight: 600;
+      font-size: 1.1rem;
+    }
+
+    .allergy-table td {
+      padding: 15px;
+      border-bottom: 1px solid #e9ecef;
+    }
+
+    .allergy-table tbody tr:hover {
+      background-color: #f8f9fa;
+    }
+
+    .allergy-table tbody tr:last-child td {
+      border-bottom: none;
+    }
+
+    .allergen-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 12px;
+      margin: 4px 6px;
+      background-color: #fff3cd;
+      color: #856404;
+      border: 1px solid #ffeaa7;
+      border-radius: 12px;
+      font-size: 0.9rem;
+      font-weight: 500;
+      vertical-align: middle;
+    }
+
+    .allergen-badge.warning {
+      background-color: #f8d7da;
+      color: #721c24;
+      border-color: #f5c6cb;
+    }
+
+    .allergen-icon {
+      font-size: 1.2rem;
+      line-height: 1;
+    }
+
+    .info-box {
+      background-color: #e7f3ff;
+      border-left: 4px solid #2196F3;
+      padding: 15px;
+      margin: 20px 0;
+      border-radius: 4px;
+    }
+
+    .info-box p {
+      margin: 5px 0;
+      color: #1976D2;
+    }
+
+    .back-link {
+      text-align: center;
+      margin-top: 30px;
+      padding: 20px;
+    }
+
+    .back-link a {
+      display: inline-block;
+      padding: 12px 24px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      text-decoration: none;
+      border-radius: 8px;
+      font-weight: 500;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .back-link a:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+  </style>
+</head>
+
+<body class="page-bg">
+  <div class="container">
+    <header>
+      <h1>⚠️ アレルギー情報</h1>
+      <p>各メニューに含まれるアレルギー物質の一覧</p>
+    </header>
+
+    <main>
+      <div class="info-box">
+        <p><strong>📌 ご注意</strong></p>
+        <p>以下の情報は参考として提供しています。アレルギーをお持ちの方は、予約時や来店時に必ずスタッフにお申し出ください。</p>
+        <p>調理環境や原材料の変更により、表示内容と異なる場合がございます。</p>
+      </div>
+
+      <section class="info-section">
+        <h2>🍽️ メニュー別アレルギー情報</h2>
+        <div id="allergy-table-container">
+          <table class="allergy-table">
+            <thead>
+              <tr>
+                <th>メニュー名</th>
+                <th>アレルギー物質</th>
+              </tr>
+            </thead>
+            <tbody id="allergy-tbody">
+              <tr>
+                <td colspan="2" style="text-align: center; padding: 20px;">
+                  <p>読み込み中...</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <div class="back-link">
+        <a href="index.html">← メインページに戻る</a>
+      </div>
+    </main>
+
+    <footer>
+      <p>&copy; 2025 学校食堂管理システム</p>
+    </footer>
+  </div>
+
+  <script>
+    const API_BASE = 'api/';
+
+    async function apiGet(path) {
+      const res = await fetch(API_BASE + path, { cache: 'no-store' });
+      if (!res.ok) throw new Error('GET failed: ' + path);
+      return await res.json();
+    }
+
+    // アレルギー物質ごとのアイコンを取得
+    function getAllergenIcon(allergen) {
+      const iconMap = {
+        '小麦': '🌾',
+        '大豆': '🫘',
+        '乳': '🥛',
+        '卵': '🥚',
+        'そば': '🍜',
+        'エビ': '🦐',
+        'カニ': '🦀',
+        '落花生': '🥜'
+      };
+      return iconMap[allergen] || '⚠️';
+    }
+
+    async function loadAllergyInfo() {
+      try {
+        // アレルギー情報を直接JSONファイルから読み込む
+        const response = await fetch('data/allergies.json', { cache: 'no-store' });
+        if (!response.ok) {
+          throw new Error('アレルギー情報の読み込みに失敗しました');
+        }
+        const data = await response.json();
+        const allergies = data.allergies || [];
+
+        const tbody = document.getElementById('allergy-tbody');
+        
+        if (allergies.length === 0) {
+          tbody.innerHTML = `
+            <tr>
+              <td colspan="2" style="text-align: center; padding: 20px;">
+                <p>アレルギー情報が登録されていません</p>
+              </td>
+            </tr>
+          `;
+          return;
+        }
+
+        // 危険度の高いアレルゲン（そば、エビなど）を判定
+        const highRiskAllergens = ['そば', 'エビ', 'カニ', '落花生'];
+
+        tbody.innerHTML = allergies.map(item => {
+          const allergenBadges = item.allergens.map(allergen => {
+            const isHighRisk = highRiskAllergens.includes(allergen);
+            const icon = getAllergenIcon(allergen);
+            return `<span class="allergen-badge ${isHighRisk ? 'warning' : ''}"><span class="allergen-icon">${icon}</span>${allergen}</span>`;
+          }).join('');
+
+          return `
+            <tr>
+              <td style="font-weight: 600; font-size: 1.05rem;">${item.menu}</td>
+              <td>${allergenBadges || '<span style="color: #6c757d;">アレルギー物質なし</span>'}</td>
+            </tr>
+          `;
+        }).join('');
+      } catch (error) {
+        console.error('アレルギー情報の読み込みエラー:', error);
+        const tbody = document.getElementById('allergy-tbody');
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="2" style="text-align: center; padding: 20px; color: #dc3545;">
+              <p>❌ アレルギー情報の読み込みに失敗しました</p>
+              <p style="font-size: 0.9rem; margin-top: 10px;">${error.message}</p>
+            </td>
+          </tr>
+        `;
+      }
+    }
+
+    // ページ読み込み時に実行
+    window.onload = function () {
+      loadAllergyInfo();
+    };
+  </script>
+</body>
+
+</html>
+
