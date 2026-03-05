@@ -122,7 +122,7 @@
   <div class="container">
     <header>
       <h1>⚠️ アレルギー情報</h1>
-      <p>各メニューに含まれるアレルギー物質の一覧</p>
+      <p>本日の定食に含まれるアレルギー物質（特定原材料等28品目に基づく）</p>
     </header>
 
     <main>
@@ -133,13 +133,14 @@
       </div>
 
       <section class="info-section">
-        <h2>🍽️ メニュー別アレルギー情報</h2>
+        <h2>🍽️ 本日の定食 アレルギー情報</h2>
+        <p style="color: #666; margin-bottom: 15px;" id="allergy-date-label">—</p>
         <div id="allergy-table-container">
           <table class="allergy-table">
             <thead>
               <tr>
                 <th>メニュー名</th>
-                <th>アレルギー物質</th>
+                <th>アレルギー物質（特定原材料等28品目）</th>
               </tr>
             </thead>
             <tbody id="allergy-tbody">
@@ -172,76 +173,163 @@
       return await res.json();
     }
 
-    // アレルギー物質ごとのアイコンを取得
+    function getTodayIso() {
+      const d = new Date();
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return y + '-' + m + '-' + day;
+    }
+
+    function formatDateLabel(iso) {
+      if (!iso) return '—';
+      const [y, m, d] = iso.split('-').map(Number);
+      return y + '年' + m + '月' + d + '日';
+    }
+
+    // 特定原材料等28品目に基づくアイコン（米は🍚に変更）
     function getAllergenIcon(allergen) {
       const iconMap = {
-        '小麦': '🌾',
-        '大豆': '🫘',
-        '乳': '🥛',
         '卵': '🥚',
-        'そば': '🍜',
+        '乳': '🥛',
+        '小麦': '🌾',
+        'えび': '🦐',
         'エビ': '🦐',
+        'かに': '🦀',
         'カニ': '🦀',
-        '落花生': '🥜'
+        'そば': '🍜',
+        '落花生': '🥜',
+        'くるみ': '🥜',
+        'アーモンド': '🥜',
+        'カシューナッツ': '🥜',
+        '大豆': '🫘',
+        '牛肉': '🥩',
+        '豚肉': '🥩',
+        '鶏肉': '🍗',
+        'あわび': '🐚',
+        'いか': '🦑',
+        'いくら': '🐟',
+        'さけ': '🐟',
+        'さば': '🐟',
+        '魚': '🐟',
+        'オレンジ': '🍊',
+        'キウイフルーツ': '🥝',
+        'バナナ': '🍌',
+        'もも': '🍑',
+        'りんご': '🍎',
+        'ごま': '⚪',
+        'まつたけ': '🍄',
+        'やまいも': '🥔',
+        'ゼラチン': '🫘',
+        'マカダミアナッツ': '🥜',
+        '米': '🍚'
       };
       return iconMap[allergen] || '⚠️';
     }
 
-    async function loadAllergyInfo() {
-      try {
-        // アレルギー情報を直接JSONファイルから読み込む
-        const response = await fetch('data/allergies.json', { cache: 'no-store' });
-        if (!response.ok) {
-          throw new Error('アレルギー情報の読み込みに失敗しました');
-        }
-        const data = await response.json();
-        const allergies = data.allergies || [];
+    // 表示用：義務表示のアレルゲンは warning スタイルで強調
+    const highRiskAllergens = ['そば', 'えび', 'エビ', 'かに', 'カニ', '落花生', '卵', '乳', '小麦', 'くるみ'];
 
-        const tbody = document.getElementById('allergy-tbody');
-        
-        if (allergies.length === 0) {
-          tbody.innerHTML = `
+    function renderAllergyRow(item) {
+      const allergens = item.allergens || [];
+      const allergenBadges = allergens.map(allergen => {
+        const a = String(allergen || '').trim();
+        const isHighRisk = highRiskAllergens.includes(a);
+        const icon = getAllergenIcon(a);
+        return `<span class="allergen-badge ${isHighRisk ? 'warning' : ''}"><span class="allergen-icon">${icon}</span>${escapeHtml(a)}</span>`;
+      }).join('');
+      return `
+        <tr>
+          <td style="font-weight: 600; font-size: 1.05rem;">${escapeHtml(item.menu)}</td>
+          <td>${allergenBadges || '<span style="color: #6c757d;">アレルギー物質なし</span>'}</td>
+        </tr>
+      `;
+    }
+
+    async function loadAllergyInfo() {
+      const tbody = document.getElementById('allergy-tbody');
+      const dateLabel = document.getElementById('allergy-date-label');
+      const today = getTodayIso();
+      dateLabel.textContent = formatDateLabel(today) + ' の定食';
+
+      try {
+        let allergiesData = { allergies: [] };
+        try {
+          allergiesData = await apiGet('allergies.php');
+        } catch (e) {
+          const res = await fetch('data/allergies.json', { cache: 'no-store' });
+          if (res.ok) allergiesData = await res.json();
+        }
+        const allergies = allergiesData.allergies || [];
+
+        const rows = [];
+
+        // 1. 本日の定食（1件だけ）
+        let dailyMenus = [];
+        try {
+          dailyMenus = await apiGet('daily-menu.php');
+        } catch (e) {
+          const fallback = await fetch('data/daily-menu.json', { cache: 'no-store' }).then(r => r.ok ? r.json() : []);
+          dailyMenus = Array.isArray(fallback) ? fallback : [];
+        }
+        const todayMenu = Array.isArray(dailyMenus) ? dailyMenus.find(m => (m.date || '') === today) : null;
+        const todayFood = todayMenu ? (todayMenu.food || '').trim() : '';
+
+        if (todayFood) {
+          const setMealName = todayFood.indexOf('定食') >= 0 ? todayFood : todayFood + '定食';
+          const todayEntry = allergies.find(item => (item.menu || '') === setMealName);
+          if (todayEntry && Array.isArray(todayEntry.allergens)) {
+            rows.push(renderAllergyRow(todayEntry));
+          } else {
+            rows.push(`
+              <tr>
+                <td style="font-weight: 600;">${escapeHtml(setMealName)}</td>
+                <td><span style="color: #6c757d;">アレルギー情報を取得できませんでした</span></td>
+              </tr>
+            `);
+          }
+        } else {
+          rows.push(`
             <tr>
-              <td colspan="2" style="text-align: center; padding: 20px;">
-                <p>アレルギー情報が登録されていません</p>
+              <td colspan="2" style="text-align: center; padding: 16px; color: #6c757d;">
+                本日の定食は設定されていません
               </td>
             </tr>
-          `;
-          return;
+          `);
         }
 
-        // 危険度の高いアレルゲン（そば、エビなど）を判定
-        const highRiskAllergens = ['そば', 'エビ', 'カニ', '落花生'];
+        // 2. その他のメニュー（うどん・ラーメン・そば・カレーなど。定食以外）
+        const otherMenus = allergies.filter(item => {
+          const menu = (item.menu || '').trim();
+          return menu !== '' && !menu.endsWith('定食');
+        });
+        otherMenus.sort((a, b) => (a.menu || '').localeCompare(b.menu || ''));
+        if (otherMenus.length > 0) {
+          rows.push('<tr><td colspan="2" style="padding-top:20px; padding-bottom:8px; font-weight:600; color:#495057; border-top:1px solid #dee2e6;">その他のメニュー（うどん・ラーメン・そば・カレーなど）</td></tr>');
+          rows.push(otherMenus.map(item => renderAllergyRow(item)).join(''));
+        }
 
-        tbody.innerHTML = allergies.map(item => {
-          const allergenBadges = item.allergens.map(allergen => {
-            const isHighRisk = highRiskAllergens.includes(allergen);
-            const icon = getAllergenIcon(allergen);
-            return `<span class="allergen-badge ${isHighRisk ? 'warning' : ''}"><span class="allergen-icon">${icon}</span>${allergen}</span>`;
-          }).join('');
-
-          return `
-            <tr>
-              <td style="font-weight: 600; font-size: 1.05rem;">${item.menu}</td>
-              <td>${allergenBadges || '<span style="color: #6c757d;">アレルギー物質なし</span>'}</td>
-            </tr>
-          `;
-        }).join('');
+        tbody.innerHTML = rows.join('');
       } catch (error) {
         console.error('アレルギー情報の読み込みエラー:', error);
-        const tbody = document.getElementById('allergy-tbody');
         tbody.innerHTML = `
           <tr>
             <td colspan="2" style="text-align: center; padding: 20px; color: #dc3545;">
               <p>❌ アレルギー情報の読み込みに失敗しました</p>
-              <p style="font-size: 0.9rem; margin-top: 10px;">${error.message}</p>
+              <p style="font-size: 0.9rem; margin-top: 10px;">${escapeHtml(error.message)}</p>
             </td>
           </tr>
         `;
       }
     }
 
-    // ページ読み込み時に実行
+    function escapeHtml(text) {
+      if (text == null) return '';
+      const div = document.createElement('div');
+      div.textContent = String(text);
+      return div.innerHTML;
+    }
+
     window.onload = function () {
       loadAllergyInfo();
     };

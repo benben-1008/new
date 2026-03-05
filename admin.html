@@ -560,15 +560,23 @@
               </div>
 
               <div class="admin-card" style="margin-top: 20px;">
-                <h3>🍽️ 今日のおすすめ定食</h3>
+                <h3>🍽️ 定食AIアドバイス</h3>
                 <p style="color: #666; font-size: 14px; margin-bottom: 15px;">
-                  AIが今日の曜日と予算（400円程度）に基づいて、おすすめの定食メニューを提案します。<br>
-                  <small style="color: #999;">※ 1日1回の提案です。同じ日は同じメニューが表示されます。</small>
+                  日付を選ぶと、その日の定食についてAIがアドバイス（作り方など）を表示します。<br>
+                  既に定食が設定されている日はそのメニューの作り方を、未設定の日はその月の献立の流れを考慮した提案と作り方を表示します。
                 </p>
-                <button onclick="getMenuAdvice()" class="btn btn-primary">定食メニューを提案</button>
+                <div class="form-group" style="margin-bottom: 15px;">
+                  <label for="advice-date">日付を選択:</label>
+                  <input type="date" id="advice-date" style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px;">
+                </div>
+                <button onclick="getMenuAdvice()" class="btn btn-primary">選択した日付の定食アドバイスを表示</button>
                 <div id="menu-advice-display"
                   style="margin-top: 20px; padding: 15px; background-color: #f8f9fa; border-radius: 8px; border: 1px solid #e9ecef; min-height: 100px;">
-                  <p style="color: #6c757d;">「定食メニューを提案」ボタンをクリックしてください</p>
+                  <p style="color: #6c757d;">日付を選択して「選択した日付の定食アドバイスを表示」をクリックしてください</p>
+                </div>
+                <div id="menu-advice-set-button" style="margin-top: 15px; display: none;">
+                  <button onclick="setSuggestedMenuToDaily()" class="btn btn-primary">✅ 定食に設定する</button>
+                  <span id="menu-advice-set-status" style="margin-left: 10px;"></span>
                 </div>
                 <div id="menu-advice-chat" style="margin-top: 20px; display: none;">
                   <h4 style="margin-bottom: 10px; color: #495057;">💬 メニューについて質問する</h4>
@@ -982,6 +990,7 @@
       }
 
       await apiPost('daily-menu.php', dailyMenus);
+      try { await apiPost('allergies.php', { action: 'sync_from_daily_menu' }); } catch (e) { console.warn('アレルギー同期スキップ:', e); }
 
       document.getElementById("daily-menu-date").value = "";
       document.getElementById("daily-menu-food").value = "";
@@ -1018,6 +1027,7 @@
       const dailyMenus = await apiGet('daily-menu.php');
       const filtered = dailyMenus.filter(m => m.date !== date);
       await apiPost('daily-menu.php', filtered);
+      try { await apiPost('allergies.php', { action: 'sync_from_daily_menu' }); } catch (e) { console.warn('アレルギー同期スキップ:', e); }
       loadDailyMenus();
       renderCalendar();
     }
@@ -2303,15 +2313,30 @@
     }
 
     let currentMenuAdvice = null;
+    let currentMenuAdviceDate = null;
+    let currentMenuAdviceSuggestedFood = null;
+    let currentMenuAdviceExistingFood = '';
+    let currentMenuAdviceIsAlreadySet = false;
     let menuChatHistory = [];
 
     async function getMenuAdvice() {
+      const dateInput = document.getElementById('advice-date');
+      const selectedDate = dateInput && dateInput.value ? dateInput.value : new Date().toISOString().slice(0, 10);
+      if (!dateInput.value) {
+        dateInput.value = selectedDate;
+      }
+
       const displayDiv = document.getElementById('menu-advice-display');
       const chatDiv = document.getElementById('menu-advice-chat');
-      displayDiv.innerHTML = '<p style="color: #666;">🤖 AIがメニューを提案しています...</p>';
+      const setButtonDiv = document.getElementById('menu-advice-set-button');
+      const setStatusSpan = document.getElementById('menu-advice-set-status');
+      displayDiv.innerHTML = '<p style="color: #666;">🤖 AIがアドバイスを取得しています...</p>';
+      if (setButtonDiv) setButtonDiv.style.display = 'none';
+      if (setStatusSpan) setStatusSpan.textContent = '';
 
       try {
-        const response = await fetch('api/ai-advice.php?action=menu');
+        const apiBase = (typeof getApiBaseCandidates === 'function' && getApiBaseCandidates().length) ? getApiBaseCandidates()[0] : 'api/';
+        const response = await fetch(`${apiBase}ai-advice.php?action=menu&date=${encodeURIComponent(selectedDate)}`);
         if (!response.ok) {
           throw new Error('API呼び出しに失敗しました');
         }
@@ -2322,35 +2347,42 @@
           return;
         }
 
-        // 現在のメニュー提案を保存
         currentMenuAdvice = data.advice;
+        currentMenuAdviceDate = data.date || selectedDate;
+        currentMenuAdviceSuggestedFood = data.suggestedFood || '';
+        currentMenuAdviceExistingFood = data.existingFood || '';
+        currentMenuAdviceIsAlreadySet = data.isAlreadySet === true;
         menuChatHistory = [];
 
-        // 改行を保持して表示し、作り方を強調
         let adviceText = data.advice;
-
-        // 【作り方】セクションを見やすくスタイリング
         adviceText = adviceText.replace(/\n【作り方】/g, '\n\n<strong style="color: #667eea; font-size: 1.1em;">📝 【作り方】</strong>');
+        adviceText = adviceText.replace(/\n【ポイント・アドバイス】/g, '\n\n<strong style="color: #28a745;">【ポイント・アドバイス】</strong>');
         adviceText = adviceText.replace(/\n(\d+)\./g, '\n<span style="color: #495057; font-weight: bold;">$1.</span>');
-
-        // メニュー名を強調
         adviceText = adviceText.replace(/\n(どんぶり|主菜|副菜|味噌汁)：([^\n]+)/g, '\n<strong style="color: #28a745; font-size: 1.05em;">$1：</strong>$2');
-
-        // 予算を強調
         adviceText = adviceText.replace(/予算：([^\n]+)/g, '<strong style="color: #dc3545;">💰 予算：</strong>$1');
-
-        // 改行を<br>に変換
         adviceText = adviceText.replace(/\n/g, '<br>');
 
+        let headerNote = '';
+        if (currentMenuAdviceIsAlreadySet && data.existingFood) {
+          headerNote = `<p style="margin-bottom:12px; color:#0c5460; background:#d1ecf1; padding:8px 12px; border-radius:6px;">📌 この日は既に「${data.existingFood}」が定食に設定されています。作り方・アドバイスを表示しています。</p>`;
+        }
         displayDiv.innerHTML = `
           <div style="line-height: 1.8; padding: 15px; background-color: #ffffff; border-radius: 8px; border: 1px solid #e9ecef;">
+            ${headerNote}
             <div style="white-space: pre-wrap;">
               ${adviceText}
             </div>
           </div>
         `;
 
-        // チャット機能を表示
+        if (setButtonDiv) {
+          if (!currentMenuAdviceIsAlreadySet && currentMenuAdviceSuggestedFood) {
+            setButtonDiv.style.display = 'block';
+          } else {
+            setButtonDiv.style.display = 'none';
+          }
+        }
+
         chatDiv.style.display = 'block';
         document.getElementById('menu-chat-messages').innerHTML = '';
       } catch (error) {
@@ -2359,9 +2391,46 @@
       }
     }
 
+    async function setSuggestedMenuToDaily() {
+      if (!currentMenuAdviceDate || !currentMenuAdviceSuggestedFood) {
+        alert('設定するメニューがありません。先に「選択した日付の定食アドバイスを表示」を実行してください。');
+        return;
+      }
+      const setStatusSpan = document.getElementById('menu-advice-set-status');
+      if (setStatusSpan) setStatusSpan.textContent = '設定中...';
+      try {
+        const apiBase = (typeof getApiBaseCandidates === 'function' && getApiBaseCandidates().length) ? getApiBaseCandidates()[0] : 'api/';
+        const dailyMenus = await apiGet('daily-menu.php');
+        const list = Array.isArray(dailyMenus) ? dailyMenus : [];
+        const existingIndex = list.findIndex(m => m.date === currentMenuAdviceDate);
+        const newEntry = { date: currentMenuAdviceDate, food: currentMenuAdviceSuggestedFood };
+        if (existingIndex >= 0) {
+          list[existingIndex] = newEntry;
+        } else {
+          list.push(newEntry);
+        }
+        list.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+        await apiPost('daily-menu.php', list);
+        try { await apiPost('allergies.php', { action: 'sync_from_daily_menu' }); } catch (e) { console.warn('アレルギー同期スキップ:', e); }
+        if (setStatusSpan) {
+          setStatusSpan.textContent = '✅ 定食に設定しました';
+          setStatusSpan.style.color = '#28a745';
+        }
+        currentMenuAdviceIsAlreadySet = true;
+        document.getElementById('menu-advice-set-button').style.display = 'none';
+        loadDailyMenus();
+      } catch (error) {
+        console.error('定食設定エラー:', error);
+        if (setStatusSpan) {
+          setStatusSpan.textContent = '❌ 設定に失敗しました';
+          setStatusSpan.style.color = '#dc3545';
+        }
+      }
+    }
+
     async function sendMenuChatMessage() {
       if (!currentMenuAdvice) {
-        alert('まずメニュー提案を取得してください');
+        alert('まず日付を選んで「選択した日付の定食アドバイスを表示」を実行してください');
         return;
       }
 
@@ -2388,8 +2457,12 @@
 
       // AI応答を取得
       try {
-        // システムプロンプトを含む最初のメッセージを構築
-        const systemMessage = `あなたは学校食堂のメニュー提案の専門家です。以下のメニュー提案について、ユーザーの質問に詳しく、わかりやすく答えてください。\n\n【メニュー提案】\n${currentMenuAdvice}\n\nユーザーの質問に対して、メニューの作り方、材料、調理のコツ、栄養価、予算内での調整方法など、具体的で実用的な情報を提供してください。`;
+        const dateContext = currentMenuAdviceDate ? `対象日付：${currentMenuAdviceDate}` : '';
+        const foodName = currentMenuAdviceIsAlreadySet ? currentMenuAdviceExistingFood : currentMenuAdviceSuggestedFood;
+        const setContext = currentMenuAdviceIsAlreadySet && foodName
+          ? `（この日は既に「${foodName}」が定食に設定されており、その作り方・アドバイスを表示しています）`
+          : (currentMenuAdviceSuggestedFood ? `（この日向けに提案されたメニュー：${currentMenuAdviceSuggestedFood}）` : '');
+        const systemMessage = `あなたは学校食堂のメニュー提案・調理の専門家です。以下の定食アドバイス（作り方・提案）について、ユーザーの質問に詳しく、わかりやすく答えてください。\n\n${dateContext} ${setContext}\n\n【定食アドバイス・メニュー内容】\n${currentMenuAdvice}\n\nユーザーの質問に対して、作り方、材料、調理のコツ、栄養価、予算内での調整方法など、具体的で実用的な情報を提供してください。`;
 
         // チャット履歴を構築（システムメッセージを最初に追加）
         const historyForAPI = menuChatHistory.slice(-6).map(msg => ({
@@ -2404,23 +2477,11 @@
           historyForAPI[0].content = systemMessage;
         }
 
-        const response = await fetch('api/ai-response.php', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            message: message,
-            history: historyForAPI,
-            useOllama: true
-          })
+        const data = await apiPost('ai-response.php', {
+          message: message,
+          history: historyForAPI,
+          useOllama: true
         });
-
-        if (!response.ok) {
-          throw new Error('API呼び出しに失敗しました');
-        }
-
-        const data = await response.json();
 
         if (data.response) {
           // AI応答を表示
@@ -2549,6 +2610,10 @@
       loadShifts();
       loadAttendanceData();
       renderCalendar();
+      var adviceDateEl = document.getElementById('advice-date');
+      if (adviceDateEl && !adviceDateEl.value) {
+        adviceDateEl.value = new Date().toISOString().slice(0, 10);
+      }
       renderLinks();
 
       // 現在の月を選択
