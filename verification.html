@@ -333,9 +333,6 @@
           <p><strong>人数:</strong> ${reservation.people}</p>
           <p><strong>予約日:</strong> ${reservation.date}</p>
           <p><strong>予約時間:</strong> ${reservation.time}</p>
-          <div style="margin-top: 12px;">
-            <a class="btn btn-primary" href="reservation-list.html">管理用：予約一覧（認証）を開く</a>
-          </div>
         `;
 
                 playSound(SUCCESS_SOUND);
@@ -395,7 +392,6 @@
             const pages = [
                 { name: '生徒用サイト (index.html)', file: 'index.html' },
                 { name: '予約サイト (book.html)', file: 'book.html' },
-                { name: '予約一覧確認 (reservation-list.html)', file: 'reservation-list.html' },
                 { name: '食堂専用AIアシスタント (ai-assistant-php.html)', file: 'ai-assistant-php.html' }
             ];
             const linksDiv = document.getElementById('page-links');

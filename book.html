@@ -334,6 +334,9 @@
       </div>
 
       <div class="booking-card">
+        <div id="reservation-hours-display" class="reservation-hours-box"
+          style="margin-bottom:20px; padding:12px 16px; background:#e8f4fd; border-radius:8px; font-size:0.95rem;">
+        </div>
         <form id="booking-form">
           <div class="form-group">
             <label for="student-name">
@@ -471,18 +474,100 @@
       return `${yyyy}-${mm}-${dd}`;
     }
 
+    // 現在時刻を HH:MM 形式で取得
+    function getCurrentTimeHHMM() {
+      const d = new Date();
+      return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+    }
+
+    // 予約時間設定（adminで設定した内容を保持）
+    let reservationTimesSettings = null;
+
+    // 予約時間設定をAPIから取得
+    async function loadReservationTimesSettings() {
+      try {
+        const apiBase = await resolveApiBase();
+        const res = await fetch(apiBase + 'reservation-times.php', { cache: 'no-store' });
+        if (res.ok) {
+          const data = await res.json();
+          reservationTimesSettings = data;
+          return data;
+        }
+      } catch (e) {
+        console.warn('[予約] 予約時間設定の取得に失敗:', e);
+      }
+      reservationTimesSettings = null;
+      return null;
+    }
+
+    // 現在時刻が予約可能時間内かチェック（設定が無い or enabledでない場合は true = 制限なし）
+    function isWithinReservationHours() {
+      if (!reservationTimesSettings || reservationTimesSettings.enabled !== true) {
+        return true; // 制限なしの場合はいつでも予約可能
+      }
+      let timeSlots = reservationTimesSettings.timeSlots;
+      if (!Array.isArray(timeSlots) || timeSlots.length === 0) {
+        const start = reservationTimesSettings.startTime;
+        const end = reservationTimesSettings.endTime;
+        if (start && end) {
+          timeSlots = [{ startTime: start, endTime: end }];
+        } else {
+          return true;
+        }
+      }
+      const now = getCurrentTimeHHMM();
+      for (let i = 0; i < timeSlots.length; i++) {
+        const slot = timeSlots[i];
+        const s = (slot.startTime || '').trim();
+        const e = (slot.endTime || '').trim();
+        if (s && e && now >= s && now <= e) return true;
+      }
+      return false;
+    }
+
+    // 予約可能時間の表示用テキストを取得
+    function getReservationHoursDisplayText() {
+      if (!reservationTimesSettings || reservationTimesSettings.enabled !== true) {
+        return null; // 制限なし
+      }
+      let timeSlots = reservationTimesSettings.timeSlots;
+      if (!Array.isArray(timeSlots) || timeSlots.length === 0) {
+        const start = reservationTimesSettings.startTime;
+        const end = reservationTimesSettings.endTime;
+        if (start && end) timeSlots = [{ startTime: start, endTime: end }];
+        else return null;
+      }
+      const parts = timeSlots.map(s => `${s.startTime}〜${s.endTime}`);
+      return parts.join('、');
+    }
+
     // メニューと予約状況を読み込む
     async function loadMenuAndStatus() {
       const foodSelect = document.getElementById('food');
       const menuDisplay = document.getElementById('menu-display');
       const reservationsDisplay = document.getElementById('reservations-display');
+      const reservationHoursDisplay = document.getElementById('reservation-hours-display');
 
       try {
         const apiBase = await resolveApiBase();
+        await loadReservationTimesSettings();
         const [menuRes, resRes] = await Promise.all([
           fetch(apiBase + 'menu.php', { cache: 'no-store' }),
           fetch(apiBase + 'sales-data.php?reservations=true', { cache: 'no-store' })
         ]);
+
+        // 予約可能時間の表示を更新
+        if (reservationHoursDisplay) {
+          const text = getReservationHoursDisplayText();
+          const within = isWithinReservationHours();
+          if (text) {
+            reservationHoursDisplay.innerHTML = '<span class="reservation-hours-label">⏰ 予約可能時間: </span><strong>' +
+              escapeHtml(text) + '</strong>' +
+              (within ? ' <span style="color:#28a745;">（現在予約可能）</span>' : ' <span style="color:#dc3545;">（現在は予約時間外です）</span>');
+          } else {
+            reservationHoursDisplay.innerHTML = '<span class="reservation-hours-label">⏰ 予約可能時間: </span>制限なし（いつでも予約可能）';
+          }
+        }
 
         // メニューの読み込み
         if (menuRes.ok) {
@@ -600,6 +685,18 @@
 
     // 予約を送信
     async function submitReservation(formData) {
+      // 予約時間設定を未取得なら取得
+      if (reservationTimesSettings === null) {
+        await loadReservationTimesSettings();
+      }
+      // 予約時間設定が有効な場合、現在時刻が予約可能時間内かチェック
+      if (reservationTimesSettings && reservationTimesSettings.enabled === true) {
+        if (!isWithinReservationHours()) {
+          const text = getReservationHoursDisplayText();
+          throw new Error('現在は予約時間外です。予約可能時間: ' + (text || '—') + ' の間にご予約ください。');
+        }
+      }
+
       const apiBase = await resolveApiBase();
       console.log('[予約デバッグ] APIベースパス:', apiBase);
       console.log('[予約デバッグ] フォームデータ:', formData);
@@ -866,12 +963,9 @@
               <p><strong>メニュー:</strong> ${escapeHtml(reservation.food)}</p>
               <p><strong>日付:</strong> ${escapeHtml(reservation.date)} ${escapeHtml(reservation.time)}</p>
               <div class="result-actions">
-                <button class="btn-submit" onclick="copyReservationInfo('${copyText.replace(/'/g, "\\'")}')" style="flex: 1;">
+                <button class="btn-submit" onclick="copyReservationInfo('${copyText.replace(/'/g, "\\'")}')" style="flex: 1; width: 100%;">
                   📋 予約情報をコピー
                 </button>
-                <a href="admin.html" class="btn-submit" style="flex: 1; text-decoration: none; text-align: center;">
-                  管理画面で確認
-                </a>
               </div>
               <p style="margin-top: 15px; font-size: 0.9rem; color: #155724;">
                 ※ この予約番号は受け取り確認に使います。忘れないようにしてください。
