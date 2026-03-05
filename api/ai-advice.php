@@ -103,11 +103,67 @@ function readAttendanceDataWithDays() {
     return [];
 }
 
-// 今日の曜日を取得
-function getTodayDayOfWeek() {
-    $dayOfWeek = date('w'); // 0=日曜日, 6=土曜日
+// 今日の曜日を取得（引数で日付指定可能）
+function getDayOfWeekForDate($dateStr) {
+    $ts = strtotime($dateStr);
+    if ($ts === false) {
+        $ts = time();
+    }
+    $dayOfWeek = date('w', $ts);
     $days = ['日', '月', '火', '水', '木', '金', '土'];
     return $days[$dayOfWeek];
+}
+
+function getTodayDayOfWeek() {
+    return getDayOfWeekForDate(date('Y-m-d'));
+}
+
+// 定食設定（日別メニュー）を読み込む
+function readDailyMenu() {
+    global $dataDir;
+    $file = $dataDir . '/daily-menu.json';
+    if (!file_exists($file)) {
+        return [];
+    }
+    $content = @file_get_contents($file);
+    if ($content === false || $content === '') {
+        return [];
+    }
+    $data = json_decode($content, true);
+    return is_array($data) ? $data : [];
+}
+
+// 指定日付の定食が既に設定されているか取得
+function getExistingFoodForDate($dailyMenus, $date) {
+    foreach ($dailyMenus as $m) {
+        if (isset($m['date']) && $m['date'] === $date) {
+            return isset($m['food']) ? trim($m['food']) : '';
+        }
+    }
+    return null;
+}
+
+// 指定月で、指定日以前の定食設定一覧を取得（献立の流れ用）
+function getMonthlyMenusBeforeDate($dailyMenus, $date) {
+    $dateTs = strtotime($date);
+    $yearMonth = date('Y-m', $dateTs);
+    $result = [];
+    foreach ($dailyMenus as $m) {
+        if (empty($m['date']) || empty($m['food'])) {
+            continue;
+        }
+        $d = $m['date'];
+        if (strpos($d, $yearMonth) !== 0) {
+            continue;
+        }
+        if ($d <= $date) {
+            $result[] = ['date' => $d, 'food' => trim($m['food'])];
+        }
+    }
+    usort($result, function ($a, $b) {
+        return strcmp($a['date'], $b['date']);
+    });
+    return $result;
 }
 
 // 定食提案をキャッシュから読み込む
@@ -138,7 +194,124 @@ function saveCachedMenuAdvice($date, $advice) {
     file_put_contents($cacheFile, json_encode($cache, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
 }
 
-// 定食提案を生成
+// 既に設定されている定食メニューについて、作り方・アドバイスを生成
+function generateAdviceForDish($date, $foodName, $dayOfWeek) {
+    $config = getAIConfig();
+    if (!($config['openai']['enabled'] ?? false) || empty($config['openai']['api_key'])) {
+        return ['error' => 'OpenAI APIが設定されていません'];
+    }
+    $cached = getCachedMenuAdvice($date);
+    if ($cached !== null && isset($cached['isAlreadySet']) && $cached['isAlreadySet'] && ($cached['existingFood'] ?? '') === $foodName) {
+        return $cached;
+    }
+    $dateStr = date('Y年m月d日', strtotime($date));
+    $systemPrompt = "あなたは学校食堂の調理の専門家です。指定された定食メニューについて、作り方・調理のコツ・盛り付け・栄養面のアドバイスを、現場で使いやすい形でわかりやすく説明してください。";
+    $userPrompt = "以下の日付・メニューについて、作り方とアドバイスを詳しく説明してください。\n\n";
+    $userPrompt .= "日付：{$dateStr}（{$dayOfWeek}曜日）\n";
+    $userPrompt .= "定食メニュー：{$foodName}\n\n";
+    $userPrompt .= "以下の形式で回答してください：\n\n【{$foodName}】\n\n- [メニューの簡単な説明・特徴]\n\n【作り方】\n1. [手順1]\n2. [手順2]\n3. [手順3]\n...\n\n【ポイント・アドバイス】\n- [調理のコツ、盛り付け、注意点など]\n\n※ 学校食堂で実際に作れるように、具体的でわかりやすく説明してください。";
+    $messages = [
+        ['role' => 'system', 'content' => $systemPrompt],
+        ['role' => 'user', 'content' => $userPrompt]
+    ];
+    $response = callOpenAIAPI($messages, $config['openai'], $config['timeout'] ?? 120, $config['connect_timeout'] ?? 15);
+    if ($response === false) {
+        return ['error' => 'AI APIの呼び出しに失敗しました'];
+    }
+    $result = [
+        'advice' => $response,
+        'date' => $date,
+        'existingFood' => $foodName,
+        'isAlreadySet' => true,
+        'dayOfWeek' => $dayOfWeek
+    ];
+    saveCachedMenuAdvice($date, $result);
+    return $result;
+}
+
+// その月の献立の流れを考慮して定食を提案し、作り方・アドバイスを生成
+function generateMenuSuggestionWithAdvice($date, $dayOfWeek, $monthMenus, $attendanceData = []) {
+    $config = getAIConfig();
+    if (!($config['openai']['enabled'] ?? false) || empty($config['openai']['api_key'])) {
+        return ['error' => 'OpenAI APIが設定されていません'];
+    }
+    $cached = getCachedMenuAdvice($date);
+    if ($cached !== null && isset($cached['suggestedFood']) && empty($cached['isAlreadySet'])) {
+        return $cached;
+    }
+    $dateStr = date('Y年m月d日', strtotime($date));
+    $budget = 400;
+    $menuStructure = '';
+    $specialNote = '';
+    if ($dayOfWeek === '月') {
+        $menuStructure = 'どんぶり＋味噌汁';
+        $specialNote = "\n\n【重要】月曜日は必ずどんぶり（丼物）を提案してください。どんぶりとは、キムチ丼、牛丼、親子丼、天丼、カツ丼、中華丼、五目丼など、ご飯の上に具材を乗せた丼物のことです。";
+    } else {
+        $menuStructure = 'ごはん＋味噌汁＋主菜＋副菜';
+    }
+    $monthContext = '';
+    if (!empty($monthMenus)) {
+        $lines = [];
+        foreach ($monthMenus as $m) {
+            $d = $m['date'];
+            $lines[] = date('j日', strtotime($d)) . ' ' . $m['food'];
+        }
+        $monthContext = "\n\n【その月（" . date('Y年n月', strtotime($date)) . "）の、この日より前に設定されている定食】\n" . implode("\n", $lines);
+        $monthContext .= "\n\n上記の献立の流れ（重複しない・バリエーション・栄養バランス）を考慮して、この日にふさわしい定食を1つだけ提案してください。";
+    } else {
+        $monthContext = "\n\nこの月ではまだ定食が設定されていないか、この日が月初です。生徒に人気で栄養バランスの良い定食を提案してください。";
+    }
+    $attendanceInfo = '';
+    if (!empty($attendanceData)) {
+        $avgAttendance = array_sum($attendanceData) / count($attendanceData);
+        $attendanceInfo = "\n\n過去の来客数データから、この日は約" . round($avgAttendance) . "人の来客が予測されます。";
+    }
+    $excludeNote = "\n\n【提案禁止】カレー定食・ラーメン定食・うどん定食は提案しないでください。ラーメン・カレー・うどんは既にメニューに単品としてあるため、定食として重複して提案しないこと。";
+    $systemPrompt = "あなたは学校食堂のメニュー提案と調理の専門家です。予算とメニュー構成に基づき、献立の流れを考慮して1品だけ定食メニューを提案し、その作り方も詳しく説明してください。カレー定食・ラーメン定食・うどん定食は提案禁止（既存メニューと重複するため）。";
+    $userPrompt = "日付：{$dateStr}（{$dayOfWeek}曜日）\n\n以下の条件で、この日の定食メニューを1つだけ提案し、作り方・アドバイスを記載してください。\n\n";
+    $userPrompt .= "- 一人当たり予算：{$budget}円程度\n";
+    $userPrompt .= "- メニュー構成：{$menuStructure}\n";
+    $userPrompt .= "- 栄養バランスを考慮\n";
+    $userPrompt .= $excludeNote;
+    $userPrompt .= $monthContext;
+    $userPrompt .= $attendanceInfo;
+    $userPrompt .= $specialNote;
+    $userPrompt .= "\n\n【回答形式】\n\n【おすすめ定食】\n[メニュー名（1品だけ、例：とんかつ定食、から揚げ定食）]\n\n【作り方】\n1. [手順1]\n2. [手順2]\n...\n\n【ポイント・アドバイス】\n- [調理のコツなど]\n\n予算：約[金額]円\n\n※ 最初の見出し「【おすすめ定食】」の次の行に、提案するメニュー名だけを1行で書いてください（例：とんかつ定食）。そのメニュー名を後で定食設定に登録するため、具体的な名前を記載してください。";
+    $messages = [
+        ['role' => 'system', 'content' => $systemPrompt],
+        ['role' => 'user', 'content' => $userPrompt]
+    ];
+    $response = callOpenAIAPI($messages, $config['openai'], $config['timeout'] ?? 120, $config['connect_timeout'] ?? 15);
+    if ($response === false) {
+        return ['error' => 'AI APIの呼び出しに失敗しました'];
+    }
+    $suggestedFood = '';
+    if (preg_match('/【おすすめ定食】\s*\n\s*([^\n【]+)/u', $response, $m)) {
+        $suggestedFood = trim(preg_replace('/定食$/', '', $m[1]));
+        if (mb_strlen($suggestedFood) > 0 && mb_strpos($m[1], '定食') !== false) {
+            $suggestedFood = trim($m[1]);
+        }
+    }
+    if ($suggestedFood === '') {
+        if (preg_match('/^([^\n【]+)/u', $response, $m2)) {
+            $suggestedFood = trim($m2[1]);
+        }
+        if ($suggestedFood === '') {
+            $suggestedFood = '日替わり定食';
+        }
+    }
+    $result = [
+        'advice' => $response,
+        'date' => $date,
+        'suggestedFood' => $suggestedFood,
+        'isAlreadySet' => false,
+        'dayOfWeek' => $dayOfWeek
+    ];
+    saveCachedMenuAdvice($date, $result);
+    return $result;
+}
+
+// 定食提案を生成（従来：今日のみ・新規提案。互換用）
 function generateMenuAdvice($dayOfWeek, $attendanceData = [], $date = null) {
     $config = getAIConfig();
     
@@ -404,12 +577,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $action = $_GET['action'] ?? 'menu';
     
     if ($action === 'menu') {
-        // 定食提案
-        $dayOfWeek = getTodayDayOfWeek();
+        // 定食アドバイス（日付指定可能。指定がなければ今日）
+        $date = isset($_GET['date']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['date']) ? $_GET['date'] : date('Y-m-d');
+        $dayOfWeek = getDayOfWeekForDate($date);
         $attendanceData = readAttendanceData();
-        $date = date('Y-m-d'); // 今日の日付
+        $dailyMenus = readDailyMenu();
+        $existingFood = getExistingFoodForDate($dailyMenus, $date);
+        $monthMenus = getMonthlyMenusBeforeDate($dailyMenus, $date);
         
-        $result = generateMenuAdvice($dayOfWeek, $attendanceData, $date);
+        if ($existingFood !== null && $existingFood !== '') {
+            // その日は既に定食が設定済み → そのメニューの作り方・アドバイスを生成
+            $result = generateAdviceForDish($date, $existingFood, $dayOfWeek);
+        } else {
+            // 未設定 → その月の献立の流れを考慮して提案し、作り方・アドバイスを生成
+            $result = generateMenuSuggestionWithAdvice($date, $dayOfWeek, $monthMenus, $attendanceData);
+        }
         echo json_encode($result, JSON_UNESCAPED_UNICODE);
     } elseif ($action === 'attendance') {
         // 来客数予測
