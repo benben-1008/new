@@ -545,20 +545,15 @@
       return parts.join('、');
     }
 
-    // 本日が休業日か（土日は自動で休業、登録休業日も含む）。戻り値: true または { closed: true, reason: string }
+    // 本日が休業日か（管理画面で登録された休業日のみ。解除すれば営業日になる）
     async function isTodayClosed() {
       try {
         const apiBase = await resolveApiBase();
         const holidaysRes = await fetch(apiBase + 'holidays.php', { cache: 'no-store' });
         const holidays = (holidaysRes.ok && await holidaysRes.json().catch(() => [])) || [];
         const today = getTodayIso();
-        const todayObj = new Date();
-        const dayOfWeek = todayObj.getDay();
-        const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
         const registered = (holidays || []).find(h => (h.date || '') === today);
-        if (registered && registered.reason) return { closed: true, reason: registered.reason };
-        if (isWeekend) return { closed: true, reason: dayOfWeek === 0 ? '日曜日' : '土曜日' };
-        if (registered) return { closed: true, reason: '休業日' };
+        if (registered) return { closed: true, reason: registered.reason || '休業日' };
         return false;
       } catch (e) {
         return false;
@@ -950,17 +945,38 @@
       return reservation;
     }
 
-    // 予約情報をコピー
-    async function copyReservationInfo(text) {
+    // 予約番号（3桁）だけをコピー（表示されている .reservation-number の内容をコピー）
+    async function copyReservationNumberOnly() {
+      const el = document.querySelector('.reservation-number');
+      const text = el ? String(el.textContent || '').trim().replace(/\D/g, '').slice(0, 3) : '';
+      const threeDigits = text.length > 0 ? text.padStart(3, '0').slice(-3) : '';
+      const toCopy = threeDigits || '000';
       try {
         if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
-          await navigator.clipboard.writeText(String(text));
-          alert('コピーしました！');
+          await navigator.clipboard.writeText(toCopy);
+          alert('予約番号（' + toCopy + '）をコピーしました！');
         } else {
-          prompt('コピーして保存してください:', String(text));
+          prompt('予約番号をコピーしてください:', toCopy);
         }
       } catch (e) {
-        prompt('コピーして保存してください:', String(text));
+        prompt('予約番号をコピーしてください:', toCopy);
+      }
+    }
+
+    // 任意のテキストをコピー（互換用）
+    async function copyReservationInfo(text) {
+      const str = String(text || '').trim();
+      const onlyDigits = str.replace(/\D/g, '');
+      const toCopy = onlyDigits.length <= 3 ? (onlyDigits || '0').padStart(3, '0').slice(-3) : onlyDigits.slice(-3).padStart(3, '0');
+      try {
+        if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+          await navigator.clipboard.writeText(toCopy);
+          alert('予約番号（' + toCopy + '）をコピーしました！');
+        } else {
+          prompt('予約番号をコピーしてください:', toCopy);
+        }
+      } catch (e) {
+        prompt('予約番号をコピーしてください:', toCopy);
       }
     }
 
@@ -1003,18 +1019,19 @@
 
           try {
             const reservation = await submitReservation(formData);
-            const copyText = `${reservation.name} / 予約番号: ${reservation.reservationNumber} / ${reservation.food} / ${reservation.date} ${reservation.time}`;
+            const num = parseInt(reservation.reservationNumber, 10);
+            const displayNumber = (Number.isFinite(num) && num >= 1 && num <= 999 ? num : (Math.abs(num) % 1000 || 1)).toString().padStart(3, '0');
 
             showResult(true, `
               <h3>✅ 予約が完了しました！</h3>
               <p><strong>予約番号:</strong></p>
-              <div class="reservation-number">${escapeHtml(reservation.reservationNumber)}</div>
+              <div class="reservation-number">${escapeHtml(displayNumber)}</div>
               <p><strong>お名前:</strong> ${escapeHtml(reservation.name)}</p>
               <p><strong>メニュー:</strong> ${escapeHtml(reservation.food)}</p>
               <p><strong>日付:</strong> ${escapeHtml(reservation.date)} ${escapeHtml(reservation.time)}</p>
               <div class="result-actions">
-                <button class="btn-submit" onclick="copyReservationInfo('${copyText.replace(/'/g, "\\'")}')" style="flex: 1; width: 100%;">
-                  📋 予約情報をコピー
+                <button type="button" class="btn-submit" onclick="copyReservationNumberOnly()" style="flex: 1; width: 100%;">
+                  📋 予約番号をコピー（3桁）
                 </button>
               </div>
               <p style="margin-top: 15px; font-size: 0.9rem; color: #155724;">

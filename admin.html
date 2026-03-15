@@ -164,7 +164,6 @@
         <button class="tab-button" onclick="switchTab('shifts', this)">📅 シフト表</button>
         <button class="tab-button" onclick="switchTab('ai-advice', this)">🤖 AIアドバイス</button>
         <button class="tab-button" onclick="switchTab('system', this)">🔄 システム管理</button>
-        <button class="tab-button" onclick="switchTab('other', this)">🔗 URL</button>
       </div>
 
       <!-- 基本設定タブ -->
@@ -284,6 +283,12 @@
                   </div>
                   <div id="daily-menu-list"></div>
                 </div>
+              </div>
+              <div class="admin-card" style="margin-top:12px; padding:12px; background:#e8f5e9; border:1px solid #c8e6c9; border-radius:8px;">
+                <h4 style="margin:0 0 8px 0;">📦 メニュー残数リセット</h4>
+                <p style="margin:0 0 10px 0; font-size:14px; color:#333;">定食を含むメニューの残数は、<strong>日付が変わると自動で初期値にリセット</strong>されます。手動でリセットしたい場合は下のボタンを押してください。</p>
+                <button type="button" onclick="triggerMenuStockReset()" class="btn btn-secondary">今すぐ残数を初期値にリセット</button>
+                <span id="menu-reset-status" style="margin-left:10px; font-size:14px;"></span>
               </div>
             </div>
           </div>
@@ -626,21 +631,6 @@
         </section>
       </div>
 
-      <!-- その他タブ -->
-      <div id="tab-other" class="tab-content">
-        <section class="admin-section">
-          <div class="accordion-header active" onclick="toggleAccordion(this)">
-            <h3>🔗 URLリンク</h3>
-            <span class="accordion-icon">▼</span>
-          </div>
-          <div class="accordion-content active">
-            <div class="accordion-body">
-              <div id="page-links" class="admin-card"></div>
-            </div>
-          </div>
-        </section>
-      </div>
-
     </main>
 
     <footer>
@@ -722,6 +712,25 @@
       } else {
         stockInput.disabled = false;
         stockInput.placeholder = "例: 30";
+      }
+    }
+
+    async function triggerMenuStockReset() {
+      const statusEl = document.getElementById('menu-reset-status');
+      if (statusEl) statusEl.textContent = 'リセット中...';
+      try {
+        await apiGet('menu.php?reset=1');
+        await loadMenus();
+        if (statusEl) {
+          statusEl.textContent = '✅ リセットしました';
+          statusEl.style.color = '#2e7d32';
+          setTimeout(() => { statusEl.textContent = ''; }, 4000);
+        }
+      } catch (e) {
+        if (statusEl) {
+          statusEl.textContent = '❌ 失敗: ' + (e.message || '');
+          statusEl.style.color = '#c62828';
+        }
       }
     }
 
@@ -2850,8 +2859,6 @@
       if (adviceDateEl && !adviceDateEl.value) {
         adviceDateEl.value = new Date().toISOString().slice(0, 10);
       }
-      renderLinks();
-
       // 現在の月を選択
       const currentMonth = new Date().getMonth() + 1;
       document.getElementById('report-month').value = currentMonth;

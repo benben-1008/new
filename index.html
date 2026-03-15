@@ -126,15 +126,18 @@
       const congestionDiv = document.getElementById("congestion-prediction");
       const today = new Date().toISOString().split("T")[0];
       const todayHoliday = holidays.find(h => h.date === today);
-      const todayMenu = dailyMenus.find(m => m.date === today);
+      let todayMenu = null;
+      try {
+        const res = await apiGet('daily-menu.php?date=' + today);
+        if (res && res.food) todayMenu = { date: today, food: res.food };
+      } catch (e) {}
+      if (!todayMenu && dailyMenus && dailyMenus.find) {
+        const m = dailyMenus.find(m => m.date === today);
+        if (m) todayMenu = m;
+      }
 
-      // 今日が土日かチェック
-      const todayObj = new Date();
-      const dayOfWeek = todayObj.getDay(); // 0=日曜日, 6=土曜日
-      const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-
-      if (todayHoliday || isWeekend) {
-        const reason = todayHoliday?.reason || (dayOfWeek === 0 ? '日曜日' : '土曜日');
+      if (todayHoliday) {
+        const reason = todayHoliday.reason || '休業日';
         statusDiv.innerHTML = `<p>🚫 本日（${today}）は休業です。<br>理由: ${reason}</p>`;
         todayMenuDiv.innerHTML = "";
         congestionDiv.innerHTML = "";
@@ -233,25 +236,15 @@
         const holiday = holidays.find(h => h.date === dateString);
         const dailyMenu = dailyMenus.find(m => m.date === dateString);
         const event = events.find(e => e.date === dateString);
-        const isSunday = dayOfWeek === 0;
-        const isSaturday = dayOfWeek === 6;
-        // 休業日かどうか（登録されている休業日または土日）
-        const isHoliday = !!holiday || isSunday || isSaturday;
+        // 休業日かどうか（管理画面で登録された日のみ。解除すれば営業日になる）
+        const isHoliday = !!holiday;
 
         let dayClass = 'calendar-day';
         let dayContent = day;
 
         if (isHoliday) {
           dayClass += ' holiday';
-          if (holiday && holiday.reason) {
-            dayContent = `${day}<br><small>${holiday.reason}</small>`;
-          } else if (isSunday) {
-            dayContent = `${day}<br><small>日曜日</small>`;
-          } else if (isSaturday) {
-            dayContent = `${day}<br><small>土曜日</small>`;
-          } else {
-            dayContent = `${day}<br><small>休業日</small>`;
-          }
+          dayContent = `${day}<br><small>${holiday.reason || '休業日'}</small>`;
         } else if (dailyMenu) {
           dayContent = `${day}<br><small>${dailyMenu.food}</small>`;
         } else {
