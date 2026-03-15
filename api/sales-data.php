@@ -228,6 +228,32 @@ function updateVerificationStatus($date, $food, $people = 1) {
     return true;
 }
 
+// 受け取り状態を更新（日付・名前・予約番号で特定）
+function setReceivedStatus($date, $name, $reservationNumber, $received = true) {
+    global $file;
+
+    $salesData = readJsonSafe($file);
+    if (!isset($salesData[$date]) || !is_array($salesData[$date]['reservationList'] ?? null)) {
+        return false;
+    }
+
+    $found = false;
+    foreach ($salesData[$date]['reservationList'] as $index => $reservation) {
+        $n = isset($reservation['name']) ? trim($reservation['name']) : '';
+        $num = isset($reservation['reservationNumber']) ? intval($reservation['reservationNumber']) : null;
+        if ($n === trim($name) && $num !== null && $num === intval($reservationNumber)) {
+            $salesData[$date]['reservationList'][$index]['received'] = (bool) $received;
+            $found = true;
+            break;
+        }
+    }
+
+    if ($found) {
+        return writeJsonSafe($file, $salesData);
+    }
+    return false;
+}
+
 // 名前と予約番号で予約を検索して認証状態を更新
 function verifyReservationByNameAndNumber($name, $reservationNumber) {
     global $file;
@@ -340,6 +366,23 @@ if (!defined('SALES_DATA_INTERNAL')) {
             // 予約リストを取得
             $reservations = getAllReservations();
             echo json_encode($reservations, JSON_UNESCAPED_UNICODE);
+        } elseif ($action === 'set-received') {
+            // 受け取り状態を更新（日付・名前・予約番号で）
+            $date = isset($data['date']) ? trim($data['date']) : '';
+            $name = isset($data['name']) ? trim($data['name']) : '';
+            $reservationNumber = isset($data['reservationNumber']) ? intval($data['reservationNumber']) : null;
+            $received = !isset($data['received']) || $data['received'] === true || $data['received'] === 'true' || $data['received'] === 1;
+            if ($date === '' || $name === '' || $reservationNumber === null) {
+                http_response_code(400);
+                echo json_encode(['error' => 'date, name, reservationNumber are required.'], JSON_UNESCAPED_UNICODE);
+                break;
+            }
+            if (setReceivedStatus($date, $name, $reservationNumber, $received)) {
+                echo json_encode(['ok' => true], JSON_UNESCAPED_UNICODE);
+            } else {
+                http_response_code(404);
+                echo json_encode(['error' => '予約が見つかりませんでした'], JSON_UNESCAPED_UNICODE);
+            }
         } elseif ($action === 'verify') {
             // 認証状態を更新（名前と予約番号で）
             if (isset($data['name']) && isset($data['reservationNumber'])) {
