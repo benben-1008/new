@@ -334,6 +334,10 @@
       </div>
 
       <div class="booking-card">
+        <div id="today-closed-message"
+          style="display:none; margin-bottom:20px; padding:16px 20px; background:#fff3cd; border:2px solid #ffc107; border-radius:8px; font-size:1rem; font-weight:bold; color:#856404;">
+          🚫 本日は休業日のため、予約はできません。
+        </div>
         <div id="reservation-hours-display" class="reservation-hours-box"
           style="margin-bottom:20px; padding:12px 16px; background:#e8f4fd; border-radius:8px; font-size:0.95rem;">
         </div>
@@ -541,23 +545,64 @@
       return parts.join('、');
     }
 
+    // 本日が休業日か（土日は自動で休業、登録休業日も含む）。戻り値: true または { closed: true, reason: string }
+    async function isTodayClosed() {
+      try {
+        const apiBase = await resolveApiBase();
+        const holidaysRes = await fetch(apiBase + 'holidays.php', { cache: 'no-store' });
+        const holidays = (holidaysRes.ok && await holidaysRes.json().catch(() => [])) || [];
+        const today = getTodayIso();
+        const todayObj = new Date();
+        const dayOfWeek = todayObj.getDay();
+        const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+        const registered = (holidays || []).find(h => (h.date || '') === today);
+        if (registered && registered.reason) return { closed: true, reason: registered.reason };
+        if (isWeekend) return { closed: true, reason: dayOfWeek === 0 ? '日曜日' : '土曜日' };
+        if (registered) return { closed: true, reason: '休業日' };
+        return false;
+      } catch (e) {
+        return false;
+      }
+    }
+
     // メニューと予約状況を読み込む
     async function loadMenuAndStatus() {
       const foodSelect = document.getElementById('food');
       const menuDisplay = document.getElementById('menu-display');
       const reservationsDisplay = document.getElementById('reservations-display');
       const reservationHoursDisplay = document.getElementById('reservation-hours-display');
+      const todayClosedEl = document.getElementById('today-closed-message');
+      const bookingForm = document.getElementById('booking-form');
+      const submitBtn = document.getElementById('submit-btn');
 
       try {
         const apiBase = await resolveApiBase();
+        const closedResult = await isTodayClosed();
+        const closed = closedResult && (closedResult.closed === true || closedResult === true);
+        const reason = (closedResult && closedResult.reason) ? closedResult.reason : '';
+        if (closed && todayClosedEl) {
+          todayClosedEl.style.display = 'block';
+          todayClosedEl.innerHTML = '🚫 本日は休業日のため、予約はできません。' + (reason ? '<br><span style="font-size:0.9em;">理由: ' + escapeHtml(reason) + '</span>' : '');
+          if (reservationHoursDisplay) reservationHoursDisplay.style.display = 'none';
+          if (bookingForm) {
+            bookingForm.querySelectorAll('input, select, button[type="submit"]').forEach(el => { el.disabled = true; });
+          }
+          if (submitBtn) submitBtn.disabled = true;
+        } else {
+          if (todayClosedEl) todayClosedEl.style.display = 'none';
+          if (reservationHoursDisplay) reservationHoursDisplay.style.display = '';
+          if (bookingForm) bookingForm.querySelectorAll('input, select, button[type="submit"]').forEach(el => { el.disabled = false; });
+          if (submitBtn) submitBtn.disabled = false;
+        }
+
         await loadReservationTimesSettings();
         const [menuRes, resRes] = await Promise.all([
           fetch(apiBase + 'menu.php', { cache: 'no-store' }),
           fetch(apiBase + 'sales-data.php?reservations=true', { cache: 'no-store' })
         ]);
 
-        // 予約可能時間の表示を更新
-        if (reservationHoursDisplay) {
+        // 予約可能時間の表示を更新（休業でない場合のみ）
+        if (reservationHoursDisplay && !closed) {
           const text = getReservationHoursDisplayText();
           const within = isWithinReservationHours();
           if (text) {
@@ -685,6 +730,11 @@
 
     // 予約を送信
     async function submitReservation(formData) {
+      const closedResult = await isTodayClosed();
+      if (closedResult && (closedResult.closed === true || closedResult === true)) {
+        const r = (closedResult.reason || '土日・祝日は休業です');
+        throw new Error('本日は休業日のため、予約できません。（' + r + '）');
+      }
       // 予約時間設定を未取得なら取得
       if (reservationTimesSettings === null) {
         await loadReservationTimesSettings();

@@ -237,7 +237,14 @@
                 </div>
               </div>
               <div class="admin-card">
-                <h3>現在の休業日一覧</h3>
+                <h3>休業日一覧</h3>
+                <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px;">
+                  <button type="button" id="btn-holidays-current" class="btn btn-primary" onclick="setHolidaysViewMode('current')">今後の予定</button>
+                  <button type="button" id="btn-holidays-past" class="btn" style="background:#f0f0f0;border:2px solid #ddd;" onclick="setHolidaysViewMode('past')">過去の休業日を見る</button>
+                  <div id="holidays-past-search-wrap" style="display:none; flex:1; min-width:200px;">
+                    <input type="text" id="holidays-past-search" placeholder="日付・理由で検索" style="width:100%;padding:8px 12px;border:2px solid #ddd;border-radius:6px;">
+                  </div>
+                </div>
                 <div id="holidays-list" class="holidays-list"></div>
               </div>
             </div>
@@ -267,7 +274,14 @@
                 </div>
 
                 <div class="admin-card">
-                  <h3>現在の定食設定一覧</h3>
+                  <h3>定食設定一覧</h3>
+                  <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px;">
+                    <button type="button" id="btn-dailymenu-current" class="btn btn-primary" onclick="setDailyMenuViewMode('current')">今後の予定</button>
+                    <button type="button" id="btn-dailymenu-past" class="btn" style="background:#f0f0f0;border:2px solid #ddd;" onclick="setDailyMenuViewMode('past')">過去の定食設定を見る</button>
+                    <div id="dailymenu-past-search-wrap" style="display:none; flex:1; min-width:200px;">
+                      <input type="text" id="dailymenu-past-search" placeholder="日付・メニュー名で検索" style="width:100%;padding:8px 12px;border:2px solid #ddd;border-radius:6px;">
+                    </div>
+                  </div>
                   <div id="daily-menu-list"></div>
                 </div>
               </div>
@@ -298,7 +312,14 @@
                 </div>
 
                 <div class="admin-card">
-                  <h3>現在の行事・お知らせ一覧</h3>
+                  <h3>行事・お知らせ一覧</h3>
+                  <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px;">
+                    <button type="button" id="btn-events-current" class="btn btn-primary" onclick="setEventsViewMode('current')">今後の予定</button>
+                    <button type="button" id="btn-events-past" class="btn" style="background:#f0f0f0;border:2px solid #ddd;" onclick="setEventsViewMode('past')">過去の行事・お知らせを見る</button>
+                    <div id="events-past-search-wrap" style="display:none; flex:1; min-width:200px;">
+                      <input type="text" id="events-past-search" placeholder="日付・内容で検索" style="width:100%;padding:8px 12px;border:2px solid #ddd;border-radius:6px;">
+                    </div>
+                  </div>
                   <div id="events-list"></div>
                 </div>
               </div>
@@ -390,22 +411,20 @@
                   <button onclick="loadReservations()" class="btn btn-primary">予約一覧を更新</button>
                 </div>
                 <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:10px;">
-                  <div class="form-group" style="margin:0;min-width:200px;flex:0 0 auto;">
-                    <label for="admin-filter-date">表示日</label>
+                  <div class="form-group" style="margin:0;">
+                    <label style="display:block;margin-bottom:4px;">表示</label>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                      <button type="button" id="btn-view-today" class="btn btn-primary" onclick="setReservationViewMode('today')">今日の予約</button>
+                      <button type="button" id="btn-view-past" class="btn" style="background:#f0f0f0;border:2px solid #ddd;" onclick="setReservationViewMode('past')">過去の予約を見る</button>
+                    </div>
+                  </div>
+                  <div class="form-group" id="past-date-wrap" style="margin:0;min-width:200px;flex:0 0 auto;display:none;">
+                    <label for="admin-filter-date">表示する日付</label>
                     <input type="date" id="admin-filter-date">
                   </div>
-                  <div class="form-group" style="margin:0;min-width:200px;flex:0 0 auto;">
-                    <label for="admin-filter-mode">表示</label>
-                    <select id="admin-filter-mode" style="width:100%;padding:10px;border:2px solid #ddd;border-radius:6px;">
-                      <option value="all" selected>すべて</option>
-                      <option value="today">指定日の予約のみ</option>
-                      <option value="unverified">未認証のみ</option>
-                      <option value="verified">認証済みのみ</option>
-                    </select>
-                  </div>
                   <div class="form-group" style="margin:0;min-width:260px;flex:1 1 260px;">
-                    <label for="admin-filter-q">検索（名前/クラス/番号/メニュー）</label>
-                    <input type="text" id="admin-filter-q" placeholder="例: 田中 / 2A / 123 / カレー">
+                    <label for="admin-filter-q">名前検索</label>
+                    <input type="text" id="admin-filter-q" placeholder="例: 田中 / 名前の一部で検索">
                   </div>
                 </div>
                 <div id="reservations-list"></div>
@@ -873,35 +892,69 @@
     async function loadHolidays() {
       const holidays = await apiGet('holidays.php');
       const list = document.getElementById("holidays-list");
+      const viewMode = window.holidaysViewMode || 'current';
+      const firstDay = getFirstDayOfMonthIso();
+      const searchQ = (document.getElementById('holidays-past-search') || {}).value ? String(document.getElementById('holidays-past-search').value).trim().toLowerCase() : '';
 
       if (!holidays || holidays.length === 0) {
         list.innerHTML = "<p>休業日は登録されていません。</p>";
         return;
       }
 
-      // 日付順にソート
-      const sortedHolidays = holidays.sort((a, b) => a.date.localeCompare(b.date));
+      let filtered = viewMode === 'past'
+        ? holidays.filter(h => (h.date || '') < firstDay)
+        : holidays.filter(h => (h.date || '') >= firstDay);
 
-      list.innerHTML = sortedHolidays.map((h, i) => {
-        const div = document.createElement("div");
-        div.className = "menu-item";
-        const reason = h.reason || '休業日';
-        div.innerHTML = `
-          <p>📅 ${h.date}　📝 ${reason}</p>
-          <button onclick="deleteHoliday(${i})" class="btn btn-danger">削除</button>
+      if (viewMode === 'past' && searchQ) {
+        filtered = filtered.filter(h => {
+          const date = String(h.date || '').toLowerCase();
+          const reason = String(h.reason || '').toLowerCase();
+          return date.includes(searchQ) || reason.includes(searchQ);
+        });
+      }
+
+      const sorted = viewMode === 'past'
+        ? [...filtered].sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+        : [...filtered].sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+
+      const total = holidays.length;
+      const label = viewMode === 'current' ? `今後の予定の休業日（${sorted.length}件）` : `過去の休業日（${sorted.length}件 / 全${total}件）${searchQ ? '・検索: 「' + escapeHtml(searchQ) + '」' : ''}`;
+
+      if (sorted.length === 0) {
+        list.innerHTML = viewMode === 'current'
+          ? "<p>今月以降に登録された休業日はありません。</p>"
+          : "<p>過去の休業日はありません。" + (searchQ ? ' 検索条件を変えてください。' : '') + "</p>";
+        return;
+      }
+
+      list.innerHTML = `<p style="margin-bottom:10px; color:#666; font-size:14px;">${label}</p>` + sorted.map((h) => {
+        const reason = escapeHtml(h.reason || '休業日');
+        const date = escapeHtml(h.date || '');
+        return `
+          <div class="menu-item" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+            <p style="margin:0;">📅 ${date}　📝 ${reason}</p>
+            <button onclick="deleteHolidayByDate('${date}')" class="btn btn-danger">削除</button>
+          </div>
         `;
-        return div.outerHTML;
       }).join('');
     }
 
     async function deleteHoliday(index) {
       if (!confirm('この休業日を削除しますか？')) return;
-
       const holidays = await apiGet('holidays.php');
       holidays.splice(index, 1);
       await apiPost('holidays.php', holidays);
+      await renderCalendar();
+      loadHolidays();
+    }
 
-      // カレンダーを再描画してから休業日一覧を更新
+    async function deleteHolidayByDate(date) {
+      if (!confirm('この休業日を削除しますか？')) return;
+      const holidays = await apiGet('holidays.php');
+      const idx = holidays.findIndex(h => (h.date || '') === date);
+      if (idx < 0) { loadHolidays(); return; }
+      holidays.splice(idx, 1);
+      await apiPost('holidays.php', holidays);
       await renderCalendar();
       loadHolidays();
     }
@@ -1001,23 +1054,50 @@
     async function loadDailyMenus() {
       const dailyMenus = await apiGet('daily-menu.php');
       const list = document.getElementById("daily-menu-list");
+      const viewMode = window.dailyMenuViewMode || 'current';
+      const firstDay = getFirstDayOfMonthIso();
+      const searchQ = (document.getElementById('dailymenu-past-search') || {}).value ? String(document.getElementById('dailymenu-past-search').value).trim().toLowerCase() : '';
 
       if (!dailyMenus || dailyMenus.length === 0) {
         list.innerHTML = "<p>定食設定はありません。</p>";
         return;
       }
 
-      // 日付順にソート
-      const sortedMenus = dailyMenus.sort((a, b) => a.date.localeCompare(b.date));
+      let filtered = viewMode === 'past'
+        ? dailyMenus.filter(m => (m.date || '') < firstDay)
+        : dailyMenus.filter(m => (m.date || '') >= firstDay);
 
-      list.innerHTML = sortedMenus.map(m => {
-        const div = document.createElement("div");
-        div.className = "menu-item";
-        div.innerHTML = `
-          <p>📅 ${m.date}　🍽️ ${m.food}</p>
-          <button onclick="deleteDailyMenu('${m.date}')" class="btn btn-danger">削除</button>
+      if (viewMode === 'past' && searchQ) {
+        filtered = filtered.filter(m => {
+          const date = String(m.date || '').toLowerCase();
+          const food = String(m.food || '').toLowerCase();
+          return date.includes(searchQ) || food.includes(searchQ);
+        });
+      }
+
+      const sorted = viewMode === 'past'
+        ? [...filtered].sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+        : [...filtered].sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+
+      const total = dailyMenus.length;
+      const label = viewMode === 'current' ? `今後の予定の定食設定（${sorted.length}件）` : `過去の定食設定（${sorted.length}件 / 全${total}件）${searchQ ? '・検索: 「' + escapeHtml(searchQ) + '」' : ''}`;
+
+      if (sorted.length === 0) {
+        list.innerHTML = viewMode === 'current'
+          ? "<p>今月以降の定食設定はありません。</p>"
+          : "<p>過去の定食設定はありません。" + (searchQ ? ' 検索条件を変えてください。' : '') + "</p>";
+        return;
+      }
+
+      list.innerHTML = `<p style="margin-bottom:10px; color:#666; font-size:14px;">${label}</p>` + sorted.map(m => {
+        const date = escapeHtml(m.date || '');
+        const food = escapeHtml(m.food || '');
+        return `
+          <div class="menu-item" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+            <p style="margin:0;">📅 ${date}　🍽️ ${food}</p>
+            <button onclick="deleteDailyMenu('${date}')" class="btn btn-danger">削除</button>
+          </div>
         `;
-        return div.outerHTML;
       }).join('');
     }
 
@@ -1059,23 +1139,50 @@
     async function loadEvents() {
       const events = await apiGet('events.php');
       const list = document.getElementById("events-list");
+      const viewMode = window.eventsViewMode || 'current';
+      const firstDay = getFirstDayOfMonthIso();
+      const searchQ = (document.getElementById('events-past-search') || {}).value ? String(document.getElementById('events-past-search').value).trim().toLowerCase() : '';
 
       if (!events || events.length === 0) {
         list.innerHTML = "<p>行事・お知らせは登録されていません。</p>";
         return;
       }
 
-      // 日付順にソート
-      const sortedEvents = events.sort((a, b) => a.date.localeCompare(b.date));
+      let filtered = viewMode === 'past'
+        ? events.filter(e => (e.date || '') < firstDay)
+        : events.filter(e => (e.date || '') >= firstDay);
 
-      list.innerHTML = sortedEvents.map(e => {
-        const div = document.createElement("div");
-        div.className = "menu-item";
-        div.innerHTML = `
-          <p>📅 ${e.date}　📢 ${e.message}</p>
-          <button onclick="deleteEvent('${e.date}')" class="btn btn-danger">削除</button>
+      if (viewMode === 'past' && searchQ) {
+        filtered = filtered.filter(e => {
+          const date = String(e.date || '').toLowerCase();
+          const msg = String(e.message || '').toLowerCase();
+          return date.includes(searchQ) || msg.includes(searchQ);
+        });
+      }
+
+      const sorted = viewMode === 'past'
+        ? [...filtered].sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+        : [...filtered].sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+
+      const total = events.length;
+      const label = viewMode === 'current' ? `今後の予定の行事・お知らせ（${sorted.length}件）` : `過去の行事・お知らせ（${sorted.length}件 / 全${total}件）${searchQ ? '・検索: 「' + escapeHtml(searchQ) + '」' : ''}`;
+
+      if (sorted.length === 0) {
+        list.innerHTML = viewMode === 'current'
+          ? "<p>今月以降の行事・お知らせはありません。</p>"
+          : "<p>過去の行事・お知らせはありません。" + (searchQ ? ' 検索条件を変えてください。' : '') + "</p>";
+        return;
+      }
+
+      list.innerHTML = `<p style="margin-bottom:10px; color:#666; font-size:14px;">${label}</p>` + sorted.map(e => {
+        const date = escapeHtml(e.date || '');
+        const message = escapeHtml(e.message || '');
+        return `
+          <div class="menu-item" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+            <p style="margin:0;">📅 ${date}　📢 ${message}</p>
+            <button onclick="deleteEvent('${date}')" class="btn btn-danger">削除</button>
+          </div>
         `;
-        return div.outerHTML;
       }).join('');
     }
 
@@ -1155,34 +1262,23 @@
 
       // === フィルター ===
       const dateEl = document.getElementById('admin-filter-date');
-      const modeEl = document.getElementById('admin-filter-mode');
       const qEl = document.getElementById('admin-filter-q');
-      const selectedDate = (dateEl && dateEl.value) ? dateEl.value : getTodayIso();
-      const mode = modeEl ? modeEl.value : 'all'; // デフォルトを「すべて」に変更
+      const viewMode = window.reservationViewMode || 'today';
+      const selectedDate = (viewMode === 'past' && dateEl && dateEl.value) ? dateEl.value : getTodayIso();
       const q = qEl ? String(qEl.value || '').trim().toLowerCase() : '';
 
       const isVerifiedFn = (r) => r && (r.verified === true || r.verified === 'true' || r.verified === 1);
+      const isReceivedFn = (r) => r && (r.received === true || r.received === 'true' || r.received === 1);
 
       console.log('[管理画面デバッグ] 🔍 フィルター設定:', {
-        mode: mode,
+        viewMode: viewMode,
         selectedDate: selectedDate,
         searchQuery: q,
         totalReservations: reservations.length
       });
 
-      let filtered = reservations;
-      if (mode === 'today') {
-        filtered = filtered.filter(r => String(r.date || '') === selectedDate);
-        console.log('[管理画面デバッグ] 📅 日付フィルター適用後:', filtered.length, '件（指定日:', selectedDate, '）');
-      } else if (mode === 'unverified') {
-        filtered = filtered.filter(r => !isVerifiedFn(r));
-        console.log('[管理画面デバッグ] 🔍 未認証フィルター適用後:', filtered.length, '件');
-      } else if (mode === 'verified') {
-        filtered = filtered.filter(r => isVerifiedFn(r));
-        console.log('[管理画面デバッグ] ✅ 認証済みフィルター適用後:', filtered.length, '件');
-      } else if (mode === 'all') {
-        console.log('[管理画面デバッグ] 📋 すべて表示モード（フィルターなし）');
-      }
+      let filtered = reservations.filter(r => String(r.date || '') === selectedDate);
+      console.log('[管理画面デバッグ] 📅 日付フィルター適用後:', filtered.length, '件（表示日:', selectedDate, '）');
       if (q) {
         const beforeSearch = filtered.length;
         filtered = filtered.filter(r => {
@@ -1198,14 +1294,8 @@
       if (filtered.length === 0) {
         let filterMsg = '';
         if (reservations.length > 0) {
-          filterMsg = `<p style='color:#856404; font-weight:bold; margin-bottom:10px;'>⚠️ 全予約数: ${reservations.length}件ありますが、フィルター条件に一致する予約がありません。</p>`;
-          if (mode === 'today') {
-            filterMsg += `<p style='color:#666;'>💡 「表示」を「すべて」に変更するか、日付を変更してみてください。</p>`;
-            filterMsg += `<p style='color:#666; font-size:14px;'>現在の設定: 日付=${selectedDate}, 表示=${mode}</p>`;
-          } else {
-            filterMsg += `<p style='color:#666;'>💡 フィルター設定を変更してみてください。</p>`;
-            filterMsg += `<p style='color:#666; font-size:14px;'>現在の設定: 表示=${mode}${q ? ', 検索=' + q : ''}</p>`;
-          }
+          filterMsg = `<p style='color:#856404; font-weight:bold; margin-bottom:10px;'>⚠️ この日の予約はありません。${viewMode === 'past' ? '別の日付を選択するか、「今日の予約」に戻ってください。' : '名前検索を外すか、別の条件で試してください。'}</p>`;
+          filterMsg += `<p style='color:#666; font-size:14px;'>表示日: ${selectedDate}${q ? ' / 名前検索: ' + escapeHtml(q) : ''}</p>`;
         } else {
           filterMsg = "<p style='color:#666;'>予約はありません（0件）。</p>";
         }
@@ -1223,6 +1313,7 @@
       // 一覧表（誰が・何を・いつ予約したかが一目でわかる）
       const verifiedCount = filtered.filter(isVerifiedFn).length;
       const unverifiedCount = filtered.length - verifiedCount;
+      const receivedCount = filtered.filter(isReceivedFn).length;
       const tableRows = filtered.map(r => {
         const name = escapeHtml(String(r.name || '').trim() || '—');
         const cls = escapeHtml(String(r.studentClass || '').trim() || '—');
@@ -1231,7 +1322,15 @@
         const time = escapeHtml(String(r.time || '—'));
         const num = r.reservationNumber != null ? r.reservationNumber : '—';
         const isVerified = isVerifiedFn(r);
+        const isReceived = isReceivedFn(r);
         const verifiedMark = isVerified ? '<span style="color: #28a745;">✅</span>' : '—';
+        const rd = escapeHtml(String(r.date || ''));
+        const rn = (String(r.name || '').trim()).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+        const hasNum = r.reservationNumber != null;
+        const rnum = hasNum ? Number(r.reservationNumber) : 0;
+        const receivedCheck = hasNum
+          ? `<input type="checkbox" ${isReceived ? 'checked' : ''} onchange="setReceived('${rd}', '${rn}', ${rnum}, this.checked)" style="cursor:pointer; transform:scale(1.2);" title="受け取り済み">`
+          : '—';
         return `
           <tr style="background-color: ${isVerified ? '#f0fff0' : '#fff'};">
             <td style="border: 1px solid #ddd; padding: 10px;">${date}</td>
@@ -1241,16 +1340,18 @@
             <td style="border: 1px solid #ddd; padding: 10px;">${food}</td>
             <td style="border: 1px solid #ddd; padding: 10px;">${num}</td>
             <td style="border: 1px solid #ddd; padding: 10px; text-align: center;">${verifiedMark}</td>
+            <td style="border: 1px solid #ddd; padding: 10px; text-align: center;">${receivedCheck}</td>
           </tr>
         `;
       }).join('');
 
+      const viewLabel = viewMode === 'today' ? '今日の予約' : selectedDate + ' の予約';
       let html = `
         <div style="margin-bottom: 20px;">
-          <h4 style="margin: 0 0 10px 0; color: #333;">📋 予約一覧（名前・メニュー・日付）</h4>
+          <h4 style="margin: 0 0 10px 0; color: #333;">📋 ${viewLabel}</h4>
           <p style="margin: 0 0 10px 0; color: #666; font-size: 14px;">
-            表示件数: <strong>${filtered.length}</strong> 件 / 全予約数: <strong>${reservations.length}</strong> 件（未認証: <strong>${unverifiedCount}</strong> / 認証済み: <strong>${verifiedCount}</strong>）
-            ${filtered.length < reservations.length ? `<span style="color:#856404;">⚠️ フィルターで ${reservations.length - filtered.length} 件が非表示</span>` : ''}
+            表示件数: <strong>${filtered.length}</strong> 件（未認証: <strong>${unverifiedCount}</strong> / 認証済み: <strong>${verifiedCount}</strong> / 受け取り済み: <strong>${receivedCount}</strong>）
+            ${q ? `<span style="color:#666;">名前検索: 「${escapeHtml(q)}」</span>` : ''}
           </p>
           <div style="overflow-x: auto;">
             <table style="width: 100%; border-collapse: collapse; min-width: 600px;">
@@ -1263,6 +1364,7 @@
                   <th style="border: 1px solid #ddd; padding: 10px; text-align: left;">予約メニュー</th>
                   <th style="border: 1px solid #ddd; padding: 10px; text-align: left;">予約番号</th>
                   <th style="border: 1px solid #ddd; padding: 10px; text-align: center;">認証</th>
+                  <th style="border: 1px solid #ddd; padding: 10px; text-align: center;">受け取り</th>
                 </tr>
               </thead>
               <tbody>
@@ -1290,22 +1392,30 @@
       html += sortedFoods.map(food => {
         const reservationsForFood = grouped[food];
         const verifiedCount = reservationsForFood.filter(isVerifiedFn).length;
+        const receivedCountFood = reservationsForFood.filter(isReceivedFn).length;
         const totalCount = reservationsForFood.length;
 
         const peopleList = reservationsForFood.map(r => {
           const isVerified = isVerifiedFn(r);
+          const isReceived = isReceivedFn(r);
           const displayName = escapeHtml(String(r.name || '').trim() || '（名前なし）');
           const displayClass = escapeHtml(String(r.studentClass || '').trim());
-          const checkboxId = 'verified-' + (r.id || r.name || '') + '-' + (r.reservationNumber || '') + '-' + Math.random().toString(36).slice(2);
+          const rd = escapeHtml(String(r.date || ''));
+          const rn = escapeHtml(String(r.name || '').trim()).replace(/'/g, "\\'").replace(/"/g, '&quot;');
+          const hasNum = r.reservationNumber != null;
+          const rnum = hasNum ? Number(r.reservationNumber) : 0;
+          const receivedCheck = hasNum
+            ? `<input type="checkbox" ${isReceived ? 'checked' : ''} onchange="setReceived('${rd}', '${rn}', ${rnum}, this.checked)" style="margin-right: 8px; transform: scale(1.3); cursor: pointer;" title="受け取り済み">`
+            : '<span style="margin-right:8px;">—</span>';
           return `
             <div style="display: flex; align-items: center; margin-bottom: 5px; padding: 5px; background-color: ${isVerified ? '#d4edda' : '#fff'}; border-radius: 4px; border: 1px solid ${isVerified ? '#c3e6cb' : '#ddd'};">
-              <input type="checkbox" id="${checkboxId}" ${isVerified ? 'checked' : ''} disabled style="margin-right: 10px; transform: scale(1.5); cursor: not-allowed; accent-color: #28a745;">
-              <label for="${checkboxId}" style="margin: 0; cursor: default; flex: 1; color: ${isVerified ? '#155724' : '#333'};">
+              <span style="margin-right:8px; color:#28a745;" title="認証">${isVerified ? '✅' : '—'}</span>
+              ${receivedCheck}
+              <label style="margin: 0; flex: 1; color: ${isVerified ? '#155724' : '#333'};">
                 <strong>${displayName}</strong>
                 ${displayClass ? ' <span style="color:#666;">（' + displayClass + '）</span>' : ''}
                 ${r.reservationNumber != null ? '（予約番号: ' + r.reservationNumber + '）' : ''}
                 ${r.date ? '　' + escapeHtml(r.date) : ''}
-                ${isVerified ? ' ✅' : ''}
               </label>
             </div>
           `;
@@ -1320,6 +1430,7 @@
             <p style="margin: 0; font-size: 16px; font-weight: bold; color: #e74c3c;">
               👥 ${totalCount}人
               ${verifiedCount > 0 ? '<span style="color: #28a745;">✅ 認証済み: ' + verifiedCount + '人</span>' : ''}
+              ${receivedCountFood > 0 ? ' <span style="color: #17a2b8;">🍱 受け取り済み: ' + receivedCountFood + '人</span>' : ''}
             </p>
           </div>
         `;
@@ -1378,6 +1489,124 @@
       const mm = String(d.getMonth() + 1).padStart(2, '0');
       const dd = String(d.getDate()).padStart(2, '0');
       return `${yyyy}-${mm}-${dd}`;
+    }
+
+    function getFirstDayOfMonthIso() {
+      const d = new Date();
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      return `${yyyy}-${mm}-01`;
+    }
+
+    function setHolidaysViewMode(mode) {
+      window.holidaysViewMode = mode;
+      const btnCur = document.getElementById('btn-holidays-current');
+      const btnPast = document.getElementById('btn-holidays-past');
+      const wrap = document.getElementById('holidays-past-search-wrap');
+      if (btnCur && btnPast && wrap) {
+        if (mode === 'current') {
+          btnCur.classList.add('btn-primary'); btnCur.style.background = ''; btnCur.style.border = '';
+          btnPast.classList.remove('btn-primary'); btnPast.style.background = '#f0f0f0'; btnPast.style.border = '2px solid #ddd';
+          wrap.style.display = 'none';
+        } else {
+          btnPast.classList.add('btn-primary'); btnPast.style.background = ''; btnPast.style.border = '';
+          btnCur.classList.remove('btn-primary'); btnCur.style.background = '#f0f0f0'; btnCur.style.border = '2px solid #ddd';
+          wrap.style.display = 'block';
+        }
+      }
+      loadHolidays();
+    }
+
+    function setDailyMenuViewMode(mode) {
+      window.dailyMenuViewMode = mode;
+      const btnCur = document.getElementById('btn-dailymenu-current');
+      const btnPast = document.getElementById('btn-dailymenu-past');
+      const wrap = document.getElementById('dailymenu-past-search-wrap');
+      if (btnCur && btnPast && wrap) {
+        if (mode === 'current') {
+          btnCur.classList.add('btn-primary'); btnCur.style.background = ''; btnCur.style.border = '';
+          btnPast.classList.remove('btn-primary'); btnPast.style.background = '#f0f0f0'; btnPast.style.border = '2px solid #ddd';
+          wrap.style.display = 'none';
+        } else {
+          btnPast.classList.add('btn-primary'); btnPast.style.background = ''; btnPast.style.border = '';
+          btnCur.classList.remove('btn-primary'); btnCur.style.background = '#f0f0f0'; btnCur.style.border = '2px solid #ddd';
+          wrap.style.display = 'block';
+        }
+      }
+      loadDailyMenus();
+    }
+
+    function setEventsViewMode(mode) {
+      window.eventsViewMode = mode;
+      const btnCur = document.getElementById('btn-events-current');
+      const btnPast = document.getElementById('btn-events-past');
+      const wrap = document.getElementById('events-past-search-wrap');
+      if (btnCur && btnPast && wrap) {
+        if (mode === 'current') {
+          btnCur.classList.add('btn-primary'); btnCur.style.background = ''; btnCur.style.border = '';
+          btnPast.classList.remove('btn-primary'); btnPast.style.background = '#f0f0f0'; btnPast.style.border = '2px solid #ddd';
+          wrap.style.display = 'none';
+        } else {
+          btnPast.classList.add('btn-primary'); btnPast.style.background = ''; btnPast.style.border = '';
+          btnCur.classList.remove('btn-primary'); btnCur.style.background = '#f0f0f0'; btnCur.style.border = '2px solid #ddd';
+          wrap.style.display = 'block';
+        }
+      }
+      loadEvents();
+    }
+
+    function setReservationViewMode(mode) {
+      window.reservationViewMode = mode;
+      const btnToday = document.getElementById('btn-view-today');
+      const btnPast = document.getElementById('btn-view-past');
+      const pastWrap = document.getElementById('past-date-wrap');
+      if (btnToday && btnPast && pastWrap) {
+        if (mode === 'today') {
+          btnToday.classList.add('btn-primary');
+          btnToday.style.background = '';
+          btnToday.style.border = '';
+          btnPast.classList.remove('btn-primary');
+          btnPast.style.background = '#f0f0f0';
+          btnPast.style.border = '2px solid #ddd';
+          pastWrap.style.display = 'none';
+        } else {
+          btnPast.classList.add('btn-primary');
+          btnPast.style.background = '';
+          btnPast.style.border = '';
+          btnToday.classList.remove('btn-primary');
+          btnToday.style.background = '#f0f0f0';
+          btnToday.style.border = '2px solid #ddd';
+          pastWrap.style.display = 'block';
+          const dateEl = document.getElementById('admin-filter-date');
+          if (dateEl && !dateEl.value) dateEl.value = getTodayIso();
+        }
+      }
+      loadReservations();
+    }
+
+    async function setReceived(date, name, reservationNumber, received) {
+      const apiBase = getApiBase();
+      try {
+        const res = await fetch(apiBase + 'sales-data.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'set-received',
+            date: date,
+            name: name,
+            reservationNumber: Number(reservationNumber),
+            received: !!received
+          })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data.ok) {
+          loadReservations();
+        } else {
+          alert('受け取り状態の更新に失敗しました。' + (data.error || res.statusText));
+        }
+      } catch (e) {
+        alert('受け取り状態の更新に失敗しました。' + (e.message || ''));
+      }
     }
 
     // レビューを削除
@@ -2564,7 +2793,6 @@
       const base = window.location.href.replace(/[^/]*$/, '');
       const pages = [
         { name: '生徒用サイト (index.html)', file: 'index.html' },
-        { name: '管理者サイト (admin.html)', file: 'admin.html' },
         { name: '予約サイト (book.html)', file: 'book.html' },
         { name: '予約確認システム (verification.html)', file: 'verification.html' },
         { name: 'レビュー投稿 (review.html)', file: 'review.html' },
@@ -2588,16 +2816,24 @@
     });
 
     window.onload = function () {
-      // 予約フィルター初期化（デフォルトは「すべて」表示）
+      // 予約一覧: デフォルトは「今日の予約」表示
+      window.reservationViewMode = 'today';
       const dateEl = document.getElementById('admin-filter-date');
       if (dateEl && !dateEl.value) dateEl.value = getTodayIso();
-      const modeEl = document.getElementById('admin-filter-mode');
-      if (modeEl && !modeEl.value) modeEl.value = 'all'; // デフォルトを「すべて」に設定
       const qEl = document.getElementById('admin-filter-q');
       const reloadReservations = () => loadReservations();
       if (dateEl) dateEl.addEventListener('change', reloadReservations);
-      if (modeEl) modeEl.addEventListener('change', reloadReservations);
       if (qEl) qEl.addEventListener('input', reloadReservations);
+      setReservationViewMode('today'); // 今日の予約ボタンをアクティブ表示
+
+      // 休業日・定食・行事: デフォルトは「今後の予定」
+      window.holidaysViewMode = window.dailyMenuViewMode = window.eventsViewMode = 'current';
+      const holidaysSearch = document.getElementById('holidays-past-search');
+      const dailymenuSearch = document.getElementById('dailymenu-past-search');
+      const eventsSearch = document.getElementById('events-past-search');
+      if (holidaysSearch) holidaysSearch.addEventListener('input', () => loadHolidays());
+      if (dailymenuSearch) dailymenuSearch.addEventListener('input', () => loadDailyMenus());
+      if (eventsSearch) eventsSearch.addEventListener('input', () => loadEvents());
 
       // データを読み込み
       loadMenus();
