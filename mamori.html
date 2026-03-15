@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>見守りシステム - 過去の予約検索</title>
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .page-bg {
+      background-image: url('images/olive.jpg');
+      background-size: cover;
+      background-position: center;
+      background-attachment: fixed;
+    }
+
+    .container {
+      background-color: rgba(255, 255, 255, 0.92);
+    }
+
+    .mamori-card {
+      background: white;
+      border-radius: 15px;
+      padding: 24px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+      margin-bottom: 24px;
+      border: 1px solid rgba(0, 0, 0, 0.06);
+    }
+
+    .search-box {
+      display: flex;
+      gap: 12px;
+      align-items: flex-end;
+      flex-wrap: wrap;
+    }
+
+    .search-box .form-group {
+      flex: 1;
+      min-width: 200px;
+      margin-bottom: 0;
+    }
+
+    .search-box input {
+      width: 100%;
+      padding: 12px 16px;
+      border: 2px solid #ddd;
+      border-radius: 8px;
+      font-size: 16px;
+    }
+
+    .search-box input:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+
+    .btn-search {
+      padding: 12px 24px;
+      background: #667eea;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-weight: bold;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .btn-search:hover {
+      background: #5568d3;
+    }
+
+    .back-link {
+      display: inline-block;
+      margin-bottom: 16px;
+      color: #667eea;
+      text-decoration: none;
+      font-weight: 500;
+    }
+
+    .back-link:hover {
+      text-decoration: underline;
+    }
+
+    .result-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 16px;
+    }
+
+    .result-table th,
+    .result-table td {
+      padding: 12px;
+      text-align: left;
+      border-bottom: 1px solid #eee;
+    }
+
+    .result-table th {
+      background: #f8f9fa;
+      font-weight: 600;
+      color: #333;
+    }
+
+    .result-table tr:hover {
+      background: #f8f9fa;
+    }
+
+    .received-yes {
+      color: #28a745;
+      font-weight: 500;
+    }
+
+    .received-no {
+      color: #dc3545;
+      font-weight: 500;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .stat-box {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 20px;
+      border-radius: 12px;
+      text-align: center;
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+    }
+
+    .stat-box.green {
+      background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+      box-shadow: 0 4px 12px rgba(17, 153, 142, 0.3);
+    }
+
+    .stat-box.orange {
+      background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+      box-shadow: 0 4px 12px rgba(245, 87, 108, 0.3);
+    }
+
+    .stat-box .stat-value {
+      font-size: 1.8rem;
+      font-weight: bold;
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    .stat-box .stat-label {
+      font-size: 0.9rem;
+      opacity: 0.95;
+    }
+
+    .ranking-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 12px;
+    }
+
+    .ranking-table th,
+    .ranking-table td {
+      padding: 10px 14px;
+      text-align: left;
+      border-bottom: 1px solid #eee;
+    }
+
+    .ranking-table th {
+      background: #f8f9fa;
+      font-weight: 600;
+    }
+
+    .rank-badge {
+      display: inline-block;
+      width: 28px;
+      height: 28px;
+      line-height: 28px;
+      text-align: center;
+      border-radius: 50%;
+      font-weight: bold;
+      font-size: 0.9rem;
+    }
+
+    .rank-1 {
+      background: #ffd700;
+      color: #333;
+    }
+
+    .rank-2 {
+      background: #c0c0c0;
+      color: #333;
+    }
+
+    .rank-3 {
+      background: #cd7f32;
+      color: #fff;
+    }
+
+    .rank-other {
+      background: #e9ecef;
+      color: #495057;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 40px 20px;
+      color: #6c757d;
+    }
+
+    .empty-state p {
+      margin: 8px 0;
+    }
+  </style>
+</head>
+
+<body class="page-bg">
+  <div class="container">
+    <header>
+      <a href="index.html" class="back-link">← トップに戻る</a>
+      <h1>🍴 見守りシステム</h1>
+      <p>名前で過去の予約を検索し、自分の利用履歴やお気に入りメニューを確認できます</p>
+    </header>
+
+    <main>
+      <section class="mamori-card">
+        <h2>🔍 名前で検索</h2>
+        <div class="search-box">
+          <div class="form-group">
+            <label for="name-input">名前（部分一致で検索）</label>
+            <input type="text" id="name-input" placeholder="例: 田中" autocomplete="off">
+          </div>
+          <button type="button" class="btn-search" id="btn-search">検索</button>
+        </div>
+      </section>
+
+      <div id="stats-section" class="mamori-card" style="display: none;">
+        <h2>📊 あなたの利用サマリー</h2>
+        <div class="stats-grid" id="stats-grid"></div>
+        <h3>🍽️ 頼んだメニューランキング</h3>
+        <p style="color:#666; font-size:0.95rem; margin-bottom:8px;">一番多く注文したメニューが一目でわかります</p>
+        <table class="ranking-table" id="ranking-table">
+          <thead>
+            <tr>
+              <th>順位</th>
+              <th>メニュー名</th>
+              <th>注文回数</th>
+            </tr>
+          </thead>
+          <tbody id="ranking-body"></tbody>
+        </table>
+      </div>
+
+      <div id="list-section" class="mamori-card" style="display: none;">
+        <h2>📋 過去の予約一覧</h2>
+        <div style="overflow-x: auto;">
+          <table class="result-table" id="result-table">
+            <thead>
+              <tr>
+                <th>日付</th>
+                <th>時間</th>
+                <th>メニュー</th>
+                <th>金額</th>
+                <th>人数</th>
+                <th>受け取り</th>
+              </tr>
+            </thead>
+            <tbody id="result-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="empty-section" class="mamori-card empty-state">
+        <p>🔍 名前を入力して「検索」を押すと、過去の予約が表示されます。</p>
+        <p>利用回数・人気メニューランキング・受け取り状況も確認できます。</p>
+      </div>
+    </main>
+
+    <footer>
+      <p>&copy; 2025 学校食堂管理システム</p>
+    </footer>
+  </div>
+
+  <script>
+    const API_BASE = 'api/';
+
+    // メニュー名から価格を抽出（例: カレーライス（450円） → 450）
+    function parsePriceFromFood(food) {
+      if (!food || typeof food !== 'string') return null;
+      const m = food.match(/[（(](\d+)円[）)]/);
+      return m ? parseInt(m[1], 10) : null;
+    }
+
+    // メニュー表示名（価格部分を除く場合もある）
+    function getFoodDisplayName(food) {
+      if (!food) return '—';
+      return food;
+    }
+
+    async function fetchReservations() {
+      const res = await fetch(API_BASE + 'sales-data.php?reservations=true', { cache: 'no-store' });
+      if (!res.ok) throw new Error('予約データの取得に失敗しました');
+      return await res.json();
+    }
+
+    function buildStats(reservations) {
+      const menuCount = {};
+      let totalAmount = 0;
+      let receivedCount = 0;
+      for (const r of reservations) {
+        const food = (r.food || '').trim();
+        if (food) {
+          menuCount[food] = (menuCount[food] || 0) + 1;
+        }
+        const price = parsePriceFromFood(r.food);
+        const people = parseInt(r.people, 10) || 1;
+        if (price != null) totalAmount += price * people;
+        if (r.received === true || r.received === 'true' || r.received === 1) receivedCount++;
+      }
+      const ranking = Object.entries(menuCount)
+        .map(([name, count]) => ({ name, count }))
+        .sort((a, b) => b.count - a.count);
+      return { menuCount, totalAmount, receivedCount, ranking };
+    }
+
+    function renderStats(stats) {
+      const grid = document.getElementById('stats-grid');
+      const rankingBody = document.getElementById('ranking-body');
+      grid.innerHTML = `
+        <div class="stat-box">
+          <span class="stat-value" id="stat-total-orders">0</span>
+          <span class="stat-label">総予約回数</span>
+        </div>
+        <div class="stat-box green">
+          <span class="stat-value" id="stat-total-amount">0</span>
+          <span class="stat-label">利用金額合計（円）</span>
+        </div>
+        <div class="stat-box orange">
+          <span class="stat-value" id="stat-received">0</span>
+          <span class="stat-label">受け取り済み回数</span>
+        </div>
+      `;
+      const totalOrders = stats.ranking.reduce((s, x) => s + x.count, 0);
+      document.getElementById('stat-total-orders').textContent = totalOrders;
+      document.getElementById('stat-total-amount').textContent = stats.totalAmount.toLocaleString();
+      document.getElementById('stat-received').textContent = stats.receivedCount;
+
+      rankingBody.innerHTML = stats.ranking.map((item, i) => {
+        const rankClass = i === 0 ? 'rank-1' : i === 1 ? 'rank-2' : i === 2 ? 'rank-3' : 'rank-other';
+        const rankNum = i + 1;
+        return `
+          <tr>
+            <td><span class="rank-badge ${rankClass}">${rankNum}</span></td>
+            <td>${escapeHtml(item.name)}</td>
+            <td>${item.count}回</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function escapeHtml(s) {
+      const div = document.createElement('div');
+      div.textContent = s;
+      return div.innerHTML;
+    }
+
+    function renderList(reservations) {
+      const tbody = document.getElementById('result-body');
+      // 日付の新しい順
+      const sorted = [...reservations].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+      tbody.innerHTML = sorted.map(r => {
+        const price = parsePriceFromFood(r.food);
+        const priceStr = price != null ? `${(price * (parseInt(r.people, 10) || 1)).toLocaleString()}円` : '—';
+        const received = r.received === true || r.received === 'true' || r.received === 1;
+        const receivedStr = received ? '<span class="received-yes">受け取り済み</span>' : '<span class="received-no">未受け取り</span>';
+        return `
+          <tr>
+            <td>${escapeHtml(r.date || '—')}</td>
+            <td>${escapeHtml(r.time || '—')}</td>
+            <td>${escapeHtml(getFoodDisplayName(r.food))}</td>
+            <td>${priceStr}</td>
+            <td>${r.people || 1}</td>
+            <td>${receivedStr}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    async function doSearch() {
+      const nameInput = document.getElementById('name-input');
+      const query = (nameInput.value || '').trim();
+      const statsSection = document.getElementById('stats-section');
+      const listSection = document.getElementById('list-section');
+      const emptySection = document.getElementById('empty-section');
+
+      if (!query) {
+        emptySection.style.display = 'block';
+        emptySection.innerHTML = '<p>名前を入力してから検索してください。</p>';
+        statsSection.style.display = 'none';
+        listSection.style.display = 'none';
+        return;
+      }
+
+      try {
+        const all = await fetchReservations();
+        if (!Array.isArray(all)) {
+          document.getElementById('empty-section').style.display = 'block';
+          document.getElementById('empty-section').innerHTML = '<p>予約データの形式が正しくありません。</p>';
+          statsSection.style.display = 'none';
+          listSection.style.display = 'none';
+          return;
+        }
+        const filtered = all.filter(r => {
+          const name = (r.name || '').trim();
+          return name.indexOf(query) !== -1 || query.indexOf(name) !== -1;
+        });
+
+        if (filtered.length === 0) {
+          statsSection.style.display = 'none';
+          listSection.style.display = 'none';
+          emptySection.style.display = 'block';
+          emptySection.innerHTML = '<p>「' + escapeHtml(query) + '」に一致する予約は見つかりませんでした。</p>';
+          return;
+        }
+
+        const stats = buildStats(filtered);
+        renderStats(stats);
+        renderList(filtered);
+        statsSection.style.display = 'block';
+        listSection.style.display = 'block';
+        emptySection.style.display = 'none';
+      } catch (e) {
+        emptySection.style.display = 'block';
+        emptySection.innerHTML = '<p>エラー: ' + escapeHtml(e.message) + '</p>';
+        statsSection.style.display = 'none';
+        listSection.style.display = 'none';
+      }
+    }
+
+    document.getElementById('btn-search').addEventListener('click', doSearch);
+    document.getElementById('name-input').addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') doSearch();
+    });
+  </script>
+</body>
+
+</html>

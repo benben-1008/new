@@ -19,6 +19,7 @@
     .container {
       background-color: rgba(255, 255, 255, 0.92);
     }
+
     /* 便利なリンク：AIアシスタント用オリーブアイコン */
     .link-icon-olive {
       width: 48px;
@@ -30,6 +31,7 @@
       background-position: center;
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
     }
+
   </style>
 </head>
 
@@ -75,6 +77,11 @@
           <a href="verification.html" class="link-card">
             <div class="link-icon">🔍</div>
             <h3>予約確認システム</h3>
+          </a>
+          <a href="mamori.html" class="link-card">
+            <div class="link-icon">🍴</div>
+            <h3>見守りシステム</h3>
+            <p>過去の予約を名前で検索・利用履歴を確認</p>
           </a>
           <a href="ai-assistant-php.html" class="link-card">
             <div class="link-icon link-icon-olive"></div>
@@ -130,7 +137,7 @@
       try {
         const res = await apiGet('daily-menu.php?date=' + today);
         if (res && res.food) todayMenu = { date: today, food: res.food };
-      } catch (e) {}
+      } catch (e) { }
       if (!todayMenu && dailyMenus && dailyMenus.find) {
         const m = dailyMenus.find(m => m.date === today);
         if (m) todayMenu = m;
@@ -149,7 +156,7 @@
         } else {
           todayMenuDiv.innerHTML = `<p>🍽️ 本日の定食は未設定です。</p>`;
         }
-        
+
         // 混雑予測を読み込む
         try {
           const predictionResponse = await fetch('api/ai-advice.php?action=prediction-number', { cache: 'no-store' });
