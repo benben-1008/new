@@ -279,6 +279,69 @@ function isProductionEnvironment() {
     return !$isLocalhost;
 }
 
+// 今日の食堂状況（休業日・予約人数・予測来客数）を取得し、プロンプト用の説明文を返す
+function getTodayCafeteriaContextForPrompt() {
+    $dataDir = __DIR__ . '/../data';
+    $today = (new DateTime())->format('Y-m-d');
+    $holidays = readJsonSafe($dataDir . '/holidays.json');
+    $todayHoliday = null;
+    foreach (is_array($holidays) ? $holidays : [] as $h) {
+        if (($h['date'] ?? '') === $today) { $todayHoliday = $h; break; }
+    }
+    $todayObj = new DateTime($today);
+    $dayOfWeek = (int) $todayObj->format('w');
+    if (($dayOfWeek === 0 || $dayOfWeek === 6) && !$todayHoliday) {
+        $todayHoliday = ['date' => $today, 'reason' => $dayOfWeek === 0 ? '日曜日' : '土曜日'];
+    }
+    $salesData = readJsonSafe($dataDir . '/sales-data.json');
+    $todayData = $salesData[$today] ?? null;
+    $reservationCount = 0;
+    if (is_array($todayData) && isset($todayData['reservations'])) {
+        $reservationCount = (int) $todayData['reservations'];
+    }
+    $predictionNumber = null;
+    $attendanceJsonPath = $dataDir . '/attendance-data.json';
+    if (file_exists($attendanceJsonPath)) {
+        $attendanceJson = json_decode(file_get_contents($attendanceJsonPath), true);
+        if (is_array($attendanceJson)) {
+            $attendanceData = $attendanceJson['attendance'] ?? [];
+            $attendanceDataWithDays = $attendanceJson['attendanceWithDays'] ?? [];
+            if (!empty($attendanceDataWithDays)) {
+                $todayDayOfWeek = ['日', '月', '火', '水', '木', '金', '土'][(int) date('w')];
+                $dayData = [];
+                foreach ($attendanceDataWithDays as $item) {
+                    if (isset($item['day']) && $item['day'] === $todayDayOfWeek) {
+                        $dayData[] = $item['attendance'];
+                    }
+                }
+                if (!empty($dayData)) {
+                    $predictionNumber = round(array_sum($dayData) / count($dayData));
+                }
+            }
+            if ($predictionNumber === null && !empty($attendanceData)) {
+                $predictionNumber = round(array_sum($attendanceData) / count($attendanceData));
+            }
+        }
+    }
+    $lines = ["\n\n【今日の食堂状況と回答ルール】"];
+    if ($todayHoliday) {
+        $reason = $todayHoliday['reason'] ?? '休業日';
+        $lines[] = "- 本日は休業日です（理由: {$reason}）。";
+        $lines[] = "- 混雑予測・予約人数・来客数を聞かれたら「今日は休業日です。」のように答え、予約人数や予測来客数は案内しない。";
+        $lines[] = "- パンと食堂（食道・売店含む）のどちらがいいか・おすすめを聞かれたら「食堂は休業日なので、パンをおすすめします。」のように答える。";
+    } else {
+        $lines[] = "- 本日は営業日です。";
+        $lines[] = "- 予約人数: {$reservationCount}人。";
+        if ($predictionNumber !== null) {
+            $lines[] = "- 予測来客数: 約{$predictionNumber}人。";
+        }
+        $lines[] = "- 混雑予測を聞かれたら、予約人数と予測来客数を伝え、混雑度も簡潔に説明する。";
+        $lines[] = "- パンと食堂のどちらがいいか聞かれたら、混雑に応じてパンまたは食堂を推奨する（休業日ではないので通常の推奨）。";
+    }
+    $lines[] = "上記の状況とルールに従って回答してください。";
+    return implode("\n", $lines);
+}
+
 // Ollama APIを呼び出し
 function callOllamaAPI($userMessage, $history = []) {
     // アレルギー情報を読み込む
@@ -296,6 +359,8 @@ function callOllamaAPI($userMessage, $history = []) {
         }
         $allergyInfoText .= "\n※アレルギーに関する質問には、この情報を基に正確に回答してください。";
     }
+
+    $cafeteriaContext = getTodayCafeteriaContextForPrompt();
     
     // より自然な会話を生成するシステムプロンプト
     $systemPrompt = <<<EOD
@@ -307,6 +372,7 @@ function callOllamaAPI($userMessage, $history = []) {
 - 学習のお手伝いとして数学、理科、英語などの教育関連の質問にも親切に答える
 - 一般的な質問や雑談にも自然に対応する
 {$allergyInfoText}
+{$cafeteriaContext}
 
 回答のスタイル：
 - 自然で流暢な会話を心がける（ChatGPTやCopilotのような感じで）
@@ -1436,9 +1502,15 @@ function answerFromCafeteriaData($userMessage) {
     // 予約時間
     $reservationTimes = readJsonSafe($dataDir . '/reservation-times.json');
 
-    // 予約人数（全件）: 過去データをクリアしていない場合も合算
-    $reservations = readJsonSafe($dataDir . '/reservations.json');
-    $totalCount = is_array($reservations) ? count($reservations) : 0;
+    // 今日の予約人数（sales-data.json の当日分を優先）
+    $salesData = readJsonSafe($dataDir . '/sales-data.json');
+    $todayData = $salesData[$today] ?? null;
+    if (is_array($todayData) && isset($todayData['reservations'])) {
+        $totalCount = (int) $todayData['reservations'];
+    } else {
+        $reservations = readJsonSafe($dataDir . '/reservations.json');
+        $totalCount = is_array($reservations) ? count($reservations) : 0;
+    }
 
     // 来客数予測を取得（ai-advice.phpから）
     $predictionData = null;
@@ -1587,11 +1659,22 @@ function answerFromCafeteriaData($userMessage) {
         return $responses[array_rand($responses)];
     }
 
-    if (mb_strpos($msg, '予約') !== false || mb_strpos($msg, '混雑') !== false || mb_strpos($msg, '人数') !== false) {
+    // 混雑予測・予約人数・来客数について
+    if (mb_strpos($msg, '予約') !== false || mb_strpos($msg, '混雑') !== false || mb_strpos($msg, '人数') !== false || mb_strpos($msg, '混雑予測') !== false || mb_strpos($msg, '来客') !== false) {
+        if ($todayHoliday) {
+            $reason = $todayHoliday['reason'] ?? '休業日';
+            $responses = [
+                "今日は休業日です。\n\n理由: {$reason}",
+                "本日は休業日のため、混雑予測のご案内はありません。\n\n理由: {$reason}",
+                "申し訳ございませんが、今日は休業日です。\n\n理由: {$reason}"
+            ];
+            return $responses[array_rand($responses)];
+        }
+        $predictionLine = ($predictionNumber !== null) ? "\n予測来客数: 約{$predictionNumber}人" : '';
         $responses = [
-            "現在の予約人数は{$totalCount}人です。\n\n混雑予測: {$congestion}",
-            "予約人数は{$totalCount}人となっています。\n\n混雑予測: {$congestion}",
-            "現在{$totalCount}人の予約があります。\n\n混雑予測: {$congestion}"
+            "現在の予約人数は{$totalCount}人です。{$predictionLine}\n\n混雑予測: {$congestion}",
+            "予約人数は{$totalCount}人となっています。{$predictionLine}\n\n混雑予測: {$congestion}",
+            "現在{$totalCount}人の予約があります。{$predictionLine}\n\n混雑予測: {$congestion}"
         ];
         return $responses[array_rand($responses)];
     }
@@ -1726,12 +1809,20 @@ function answerFromCafeteriaData($userMessage) {
         return $responses[array_rand($responses)];
     }
 
-    // パンか食堂かの推奨
-    if (mb_strpos($msg, 'パン') !== false && mb_strpos($msg, '食堂') !== false || 
+    // パンか食堂かの推奨（パン・食堂・食道・売店など）
+    if (mb_strpos($msg, 'パン') !== false && (mb_strpos($msg, '食堂') !== false || mb_strpos($msg, '食道') !== false) ||
         mb_strpos($msg, '売店') !== false || mb_strpos($msg, 'どっち') !== false ||
-        mb_strpos($msg, 'どちら') !== false || mb_strpos($msg, 'おすすめ') !== false && 
-        (mb_strpos($msg, 'パン') !== false || mb_strpos($msg, '食堂') !== false)) {
-        
+        mb_strpos($msg, 'どちら') !== false || (mb_strpos($msg, 'おすすめ') !== false && (mb_strpos($msg, 'パン') !== false || mb_strpos($msg, '食堂') !== false))) {
+
+        if ($todayHoliday) {
+            $responses = [
+                "食堂は休業日なので、パンをおすすめします。\n\n売店のパンをご利用ください。",
+                "本日は食堂が休業日のため、🍞 パン（売店）をおすすめします。",
+                "今日は食堂がお休みです。\n\n🍞 売店のパンをご利用ください。"
+            ];
+            return $responses[array_rand($responses)];
+        }
+
         // 来客数予測を取得
         $recommendation = '';
         if ($predictionNumber !== null) {
@@ -1743,7 +1834,7 @@ function answerFromCafeteriaData($userMessage) {
         } else {
             $recommendation = "来客数予測データが不足しているため、正確な推奨ができません。\n\n一般的には、混雑時は🍞 **売店のパン**、空いている時は🍽️ **食堂**がおすすめです。";
         }
-        
+
         $responses = [
             $recommendation,
             $recommendation
