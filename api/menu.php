@@ -14,6 +14,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 $dataDir = __DIR__ . '/../data';
 $file = $dataDir . '/menu.json';
+$lastResetFile = $dataDir . '/last-stock-reset.json';
 if (!is_dir($dataDir)) {
   mkdir($dataDir, 0777, true);
 }
@@ -32,9 +33,44 @@ function write_json($file, $data) {
   return file_put_contents($file, json_encode($data, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
 }
 
+// 日付が変わったとき、または手動リセット時にメニュー残数を initialStock に戻す
+function maybe_reset_stock_by_day($menus, $file, $lastResetFile, $force = false) {
+  $today = date('Y-m-d');
+  $lastDate = '';
+  if (!$force && file_exists($lastResetFile)) {
+    $raw = @file_get_contents($lastResetFile);
+    if ($raw !== false) {
+      $data = json_decode($raw, true);
+      if (is_array($data) && !empty($data['date'])) {
+        $lastDate = $data['date'];
+      }
+    }
+  }
+  if (!$force && $lastDate === $today) {
+    return $menus;
+  }
+  $changed = false;
+  foreach ($menus as $i => $m) {
+    $initial = isset($m['initialStock']) ? (int)$m['initialStock'] : (isset($m['stock']) ? (int)$m['stock'] : 0);
+    $current = isset($m['stock']) ? (int)$m['stock'] : 0;
+    if ($current !== $initial) {
+      $menus[$i]['stock'] = $initial;
+      $changed = true;
+    }
+  }
+  if ($changed || $force || $lastDate !== $today) {
+    write_json($file, $menus);
+    write_json($lastResetFile, ['date' => $today]);
+  }
+  return $menus;
+}
+
 switch ($_SERVER['REQUEST_METHOD']) {
   case 'GET':
-    echo json_encode(read_json($file), JSON_UNESCAPED_UNICODE);
+    $menus = read_json($file);
+    $forceReset = isset($_GET['reset']) && $_GET['reset'] === '1';
+    $menus = maybe_reset_stock_by_day($menus, $file, $lastResetFile, $forceReset);
+    echo json_encode($menus, JSON_UNESCAPED_UNICODE);
     break;
   case 'POST':
     $input = file_get_contents('php://input');
