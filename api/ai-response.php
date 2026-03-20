@@ -338,6 +338,87 @@ function getTodayCafeteriaContextForPrompt() {
         $lines[] = "- 混雑予測を聞かれたら、予約人数と予測来客数を伝え、混雑度も簡潔に説明する。";
         $lines[] = "- パンと食堂のどちらがいいか聞かれたら、混雑に応じてパンまたは食堂を推奨する（休業日ではないので通常の推奨）。";
     }
+
+    // メニュー価格・定食日程（AIの根拠として渡す）
+    $menuItems = readJsonSafe($dataDir . '/menu.json');
+    $menuPriceLines = [];
+    $setMealPrice = null;
+    foreach (is_array($menuItems) ? $menuItems : [] as $item) {
+        if (!is_array($item)) continue;
+        $rawName = (string)($item['name'] ?? '');
+        if ($rawName === '') continue;
+
+        $price = null;
+        if (preg_match('/（\s*(\d+)\s*円\s*）/u', $rawName, $m)) {
+            $price = (int)$m[1];
+        } elseif (preg_match('/\\(\\s*(\\d+)\\s*円\\s*\\)/u', $rawName, $m)) {
+            $price = (int)$m[1];
+        }
+
+        $cleanName = preg_replace('/（\s*\d+\s*円\s*）/u', '', $rawName);
+        $cleanName = preg_replace('/\\(\\s*\\d+\\s*円\\s*\\)/u', '', $cleanName);
+        $cleanName = trim((string)$cleanName);
+
+        if (mb_strpos($rawName, '日替わり定食') !== false && $price !== null) {
+            $setMealPrice = $price;
+        }
+
+        if ($price !== null) {
+            $menuPriceLines[] = "- {$cleanName}: {$price}円";
+        } else {
+            $menuPriceLines[] = "- {$cleanName}: 価格不明";
+        }
+    }
+
+    if (!empty($menuPriceLines)) {
+        $lines[] = "\n\n【メニュー価格（データ）】\n" . implode("\n", $menuPriceLines);
+        if ($setMealPrice !== null) {
+            $lines[] = "※ 各「*定食」は、日替わり定食の価格（{$setMealPrice}円）として答えてください。";
+        }
+    }
+
+    // 定食の日程（未来のみを日付順で渡す）
+    $dailyMenus = readJsonSafe($dataDir . '/daily-menu.json');
+    $dailyMenuEntries = [];
+    foreach (is_array($dailyMenus) ? $dailyMenus : [] as $m) {
+        if (!is_array($m)) continue;
+        $date = (string)($m['date'] ?? '');
+        $food = (string)($m['food'] ?? '');
+        if ($date === '' || $food === '') continue;
+        $dailyMenuEntries[] = ['date' => $date, 'food' => $food];
+    }
+
+    usort($dailyMenuEntries, function ($a, $b) {
+        return strcmp($a['date'] ?? '', $b['date'] ?? '');
+    });
+
+    $futureDailyMenuEntries = array_values(array_filter($dailyMenuEntries, function ($e) use ($today) {
+        return isset($e['date']) && $e['date'] >= $today; // 日付文字列なので辞書順で比較可能
+    }));
+
+    $futureDailyMenuLines = [];
+    foreach ($futureDailyMenuEntries as $e) {
+        $futureDailyMenuLines[] = "- {$e['date']}: {$e['food']}";
+    }
+
+    if (!empty($futureDailyMenuLines)) {
+        $lines[] = "\n\n【定食（設定済み）: 今後（未来/当日）】\n" . implode("\n", array_slice($futureDailyMenuLines, 0, 120));
+        if (count($futureDailyMenuLines) > 120) {
+            $lines[] = "（…先頭120件のみ表示）";
+        }
+    } else {
+        $lines[] = "\n\n【定食（設定済み）: 今後（未来/当日）】\n（該当なし）";
+    }
+
+    $todayMenuFood = '未設定';
+    foreach (is_array($dailyMenus) ? $dailyMenus : [] as $m) {
+        if (is_array($m) && (($m['date'] ?? '') === $today)) {
+            $todayMenuFood = (string)($m['food'] ?? '未設定');
+            break;
+        }
+    }
+    $lines[] = "\n\n【今日の定食（設定済み）】\n- {$today}: {$todayMenuFood}";
+
     $lines[] = "上記の状況とルールに従って回答してください。";
     return implode("\n", $lines);
 }
@@ -391,6 +472,9 @@ function callOllamaAPI($userMessage, $history = []) {
 - 自然な会話の流れを保つ
 - 毎回同じような応答にならないよう、バリエーションを持たせる
 - ユーザーの質問の意図を深く理解し、それに応じた適切な応答をする
+- 食堂に関する質問（メニュー価格「何円」や「定食の日はいつ」等）では、必ず【メニュー価格（データ）】と【定食（設定済み）の日程（データ）】を根拠にして答える（推測で断定しない）。
+- 「次の」「次回」「これから」など“次”のニュアンスがある場合は、【定食（設定済み）: 今後（未来/当日）】だけから最も早い日付を選んで答える。
+- 「～定食の日はいつ？」のように日程を聞かれたら、【定食（設定済み）: 今後（未来/当日）】に含まれる該当日を列挙し、必要なら最短日も示す。
 EOD;
     
     if (isProductionEnvironment()) {
@@ -1198,12 +1282,8 @@ function callHuggingFaceAPIWithPrompt($fullPrompt) {
 }
 
 function generateAIResponse($userMessage, $useOllama = true, $ollamaAvailable = false, $history = []) {
-    // まず食堂データを確認（最優先）
-    $cafeteriaAnswer = answerFromCafeteriaData($userMessage);
-    if ($cafeteriaAnswer !== null) {
-        return $cafeteriaAnswer;
-    }
-    
+    // AIを優先して呼び出す（食堂データの“決定的回答”はAI失敗時のみフォールバックする）
+
     // Ollamaを最優先で使用（useOllamaがtrueの場合）
     if ($useOllama && $ollamaAvailable) {
         $ollamaResponse = callOllamaAPI($userMessage, $history);
@@ -1237,6 +1317,12 @@ function generateAIResponse($userMessage, $useOllama = true, $ollamaAvailable = 
     // これにより、AIが実際に動作しているかどうかを確認できる
     
     if (!$ollamaAvailable || !$useOllama) {
+        // AIが使えない場合のみ、食堂データからの決定的回答にフォールバック
+        $cafeteriaAnswer = answerFromCafeteriaData($userMessage);
+        if ($cafeteriaAnswer !== null) {
+            return $cafeteriaAnswer;
+        }
+
         return "❌ **AI APIが利用できません**\n\n" .
                "設定状況:\n" .
                "- AI API使用: " . ($useOllama ? "✅ 有効" : "❌ 無効") . "\n" .
@@ -1356,6 +1442,12 @@ function generateAIResponse($userMessage, $useOllama = true, $ollamaAvailable = 
                "- デバッグログで詳細を確認してください";
     }
     
+    // AIが失敗したときだけ、食堂データの決定的回答へフォールバック
+    $cafeteriaAnswer = answerFromCafeteriaData($userMessage);
+    if ($cafeteriaAnswer !== null) {
+        return $cafeteriaAnswer;
+    }
+
     return "❌ **AI API呼び出しが失敗しました**\n\n" .
            "**システム情報**:\n" .
            "- cURL機能: $curlAvailable\n" .
@@ -1564,10 +1656,10 @@ function answerFromCafeteriaData($userMessage) {
             }
             
             // 混雑度を判定
-            if ($predictionNumber >= 45) {
+            if ($predictionNumber >= 55) {
                 $congestion = '非常に混雑しそう';
                 $congestionColor = '#dc3545';
-            } else if ($predictionNumber >= 30) {
+            } else if ($predictionNumber >= 40) {
                 $congestion = '混雑しそう';
                 $congestionColor = '#fd7e14';
             } else if ($predictionNumber >= 15) {
@@ -1583,7 +1675,8 @@ function answerFromCafeteriaData($userMessage) {
     // 予約人数ベースの混雑予測（フォールバック）
     if ($predictionNumber === null) {
         $congestion = '空いています';
-        if ($totalCount >= 30) $congestion = '非常に混雑';
+        if ($totalCount >= 55) $congestion = '非常に混雑';
+        else if ($totalCount >= 40) $congestion = '混雑しそう';
         else if ($totalCount >= 15) $congestion = 'やや混雑';
     }
 
@@ -1826,7 +1919,7 @@ function answerFromCafeteriaData($userMessage) {
         // 来客数予測を取得
         $recommendation = '';
         if ($predictionNumber !== null) {
-            if ($predictionNumber >= 45) {
+            if ($predictionNumber >= 40) {
                 $recommendation = "今日の予測来客数は約{$predictionNumber}人です。\n\n混雑が予測されるため、🍞 **売店のパン**をおすすめします。\n\n食堂は混雑している可能性が高いので、売店のパンの方がスムーズに購入できると思います。";
             } else {
                 $recommendation = "今日の予測来客数は約{$predictionNumber}人です。\n\n比較的空いている予測のため、🍽️ **食堂**をおすすめします。\n\nゆっくりと食事を楽しめると思います。";

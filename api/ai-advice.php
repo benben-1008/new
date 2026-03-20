@@ -567,9 +567,9 @@ function getCongestionLevel($attendanceNumber) {
         return ['level' => 'unknown', 'text' => 'データ不足', 'color' => '#6c757d'];
     }
     
-    if ($attendanceNumber >= 45) {
+    if ($attendanceNumber >= 55) {
         return ['level' => 'very_crowded', 'text' => '非常に混雑しそう', 'color' => '#dc3545'];
-    } else if ($attendanceNumber >= 30) {
+    } else if ($attendanceNumber >= 40) {
         return ['level' => 'crowded', 'text' => '混雑しそう', 'color' => '#fd7e14'];
     } else if ($attendanceNumber >= 15) {
         return ['level' => 'moderate', 'text' => 'やや混雑しそう', 'color' => '#ffc107'];
