@@ -163,7 +163,7 @@
         <button class="tab-button" onclick="switchTab('data', this)">📝 予約確認</button>
         <button class="tab-button" onclick="switchTab('shifts', this)">📅 シフト表</button>
         <button class="tab-button" onclick="switchTab('ai-advice', this)">🤖 AIアドバイス</button>
-        <button class="tab-button" onclick="switchTab('system', this)">🔄 システム管理</button>
+        <button class="tab-button" onclick="switchTab('system', this)">📊 データ分析</button>
       </div>
 
       <!-- 基本設定タブ -->
@@ -460,7 +460,7 @@
         </section>
       </div>
 
-      <!-- システム管理タブ -->
+      <!-- データ分析タブ -->
       <div id="tab-system" class="tab-content">
         <!-- 🔹 月間レポート -->
         <section class="admin-section">
@@ -472,31 +472,25 @@
             <div class="accordion-body">
               <div class="admin-card">
                 <h3>レポート生成</h3>
-                <div class="form-group">
-                  <label for="report-year">年:</label>
-                  <select id="report-year">
-                    <option value="2024">2024年</option>
-                    <option value="2025" selected>2025年</option>
-                    <option value="2026">2026年</option>
-                  </select>
-                </div>
-                <div class="form-group">
-                  <label for="report-month">月:</label>
-                  <select id="report-month">
-                    <option value="1">1月</option>
-                    <option value="2">2月</option>
-                    <option value="3">3月</option>
-                    <option value="4">4月</option>
-                    <option value="5">5月</option>
-                    <option value="6">6月</option>
-                    <option value="7">7月</option>
-                    <option value="8">8月</option>
-                    <option value="9">9月</option>
-                    <option value="10">10月</option>
-                    <option value="11">11月</option>
-                    <option value="12">12月</option>
-                  </select>
-                </div>
+                  <div class="form-group">
+                    <label for="report-ym" style="margin-right: 10px;">対象月:</label>
+                    <input
+                      type="month"
+                      id="report-ym"
+                      min="2024-01"
+                      max="2026-12"
+                      style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; max-width: 220px; width: 100%;"
+                    >
+                    <div id="report-ym-hint" style="color: #6c757d; font-size: 12px; margin-top: 6px;">
+                      例：2026-03
+                    </div>
+                  </div>
+
+                  <div style="margin: 10px 0 8px; display: flex; gap: 10px; flex-wrap: wrap;">
+                    <button type="button" onclick="shiftReportYm(-1)" class="btn btn-secondary" style="padding: 8px 12px;">前月</button>
+                    <button type="button" onclick="shiftReportYm(0)" class="btn btn-primary" style="padding: 8px 12px;">今月</button>
+                    <button type="button" onclick="shiftReportYm(1)" class="btn btn-secondary" style="padding: 8px 12px;">翌月</button>
+                  </div>
                 <div style="margin-bottom:10px;">
                   <button onclick="generateReport()" class="btn btn-primary">レポート生成</button>
                   <button onclick="downloadReport()" class="btn btn-success">Excel形式でダウンロード</button>
@@ -1790,9 +1784,39 @@
     }
 
     // === 月間レポート ===
+    // input[type="month"] 用：表示を YYYY-MM として扱い、前月/翌月へシフト
+    function getReportYmDate() {
+      const el = document.getElementById('report-ym');
+      const now = new Date();
+      const fallback = new Date(now.getFullYear(), now.getMonth(), 1);
+      if (!el) return fallback;
+      const v = String(el.value || '');
+      const m = v.match(/^(\d{4})-(\d{2})$/);
+      if (!m) return fallback;
+      const y = parseInt(m[1], 10);
+      const mm = parseInt(m[2], 10);
+      return new Date(y, mm - 1, 1);
+    }
+
+    function setReportYmFromDate(dateObj) {
+      const el = document.getElementById('report-ym');
+      if (!el) return;
+      const y = dateObj.getFullYear();
+      const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
+      el.value = `${y}-${mm}`;
+    }
+
+    function shiftReportYm(deltaMonths) {
+      const d = getReportYmDate();
+      d.setMonth(d.getMonth() + deltaMonths);
+      setReportYmFromDate(d);
+    }
+
     async function generateReport() {
-      const year = document.getElementById('report-year').value;
-      const month = document.getElementById('report-month').value;
+      const ymValue = document.getElementById('report-ym')?.value;
+      const m = String(ymValue || '').match(/^(\d{4})-(\d{2})$/);
+      const year = m ? parseInt(m[1], 10) : new Date().getFullYear();
+      const month = m ? parseInt(m[2], 10) : new Date().getMonth() + 1;
 
       try {
         const response = await fetch(`api/monthly-report.php?year=${year}&month=${month}`);
@@ -1931,7 +1955,6 @@
           <div style="background: #e3f2fd; padding: 15px; border-radius: 8px;">
             <h4 style="margin-top: 0;">📈 分析結果</h4>
             <p><strong>最も忙しかった日:</strong> ${report.busiestDay || 'データなし'}</p>
-            <p><strong>最も忙しかった時間帯:</strong> ${report.busiestTimeSlot || 'データなし'}</p>
           </div>
         </div>
       `;
@@ -2033,7 +2056,9 @@
         // ラベル間引き
         const showLabel = idx % 3 === 0 || idx === daily.length - 1;
         if (showLabel) {
-          const date = String(d.date || '').slice(5); // MM-DD
+          const s = String(d.date || '');
+          const dm = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+          const date = dm ? `${parseInt(dm[2], 10)}/${parseInt(dm[3], 10)}` : s;
           ctx.fillStyle = '#666';
           ctx.save();
           ctx.translate(x0 + barGroupW / 2, yBase + 22);
@@ -2046,31 +2071,142 @@
     }
 
     async function downloadReport() {
-      const year = document.getElementById('report-year').value;
-      const month = document.getElementById('report-month').value;
+      const ymValue = document.getElementById('report-ym')?.value;
+      const m = String(ymValue || '').match(/^(\d{4})-(\d{2})$/);
+      const year = m ? parseInt(m[1], 10) : new Date().getFullYear();
+      const month = m ? parseInt(m[2], 10) : new Date().getMonth() + 1;
+      const monthLabel = `${month}月`;
+      const fileName = `monthly_report_${year}_${monthLabel}.xlsx`;
+
+      // ExcelJS を CDN から読み込み（サーバ側ライブラリ不要）
+      async function loadExcelJS() {
+        if (window.ExcelJS) return window.ExcelJS;
+        const cdn = 'https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js';
+        await new Promise((resolve, reject) => {
+          const script = document.createElement('script');
+          script.src = cdn;
+          script.async = true;
+          script.onload = resolve;
+          script.onerror = () => reject(new Error('ExcelJSの読み込みに失敗しました（CDN）'));
+          document.head.appendChild(script);
+        });
+        return window.ExcelJS;
+      }
 
       try {
-        const response = await fetch(`api/monthly-report.php?year=${year}&month=${month}&format=csv`);
-        // 文字化け対策：文字列で受けずバイトのまま Blob 化する
-        const buf = await response.arrayBuffer();
-        const bytes = new Uint8Array(buf);
+        // JSON取得（admin表示・xlsx生成の両方で使う）
+        const response = await fetch(`api/monthly-report.php?year=${year}&month=${month}`);
+        const report = await response.json();
 
-        const blob = new Blob([bytes], { type: 'text/csv;charset=Shift_JIS;' });
-        const link = document.createElement('a');
+        // 表示更新（キャンバスにグラフ描画）
+        displayReport(report);
+
+        const canvas = document.getElementById('monthly-daily-chart');
+        const ctx = canvas ? canvas.getContext('2d') : null;
+        if (!canvas || !ctx) throw new Error('グラフ用canvasが見つかりません。');
+
+        // 月/日（M/D）に整形
+        const formatMonthDay = (dateStr) => {
+          const s = String(dateStr || '');
+          const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+          if (!m) return s;
+          return `${parseInt(m[2], 10)}/${parseInt(m[3], 10)}`;
+        };
+
+        // ExcelJS 生成
+        let ExcelJS;
+        try {
+          ExcelJS = await loadExcelJS();
+        } catch (e) {
+          throw e;
+        }
+        const workbook = new ExcelJS.Workbook();
+
+        // 1) 日別推移（表 + グラフ画像）
+        const wsDaily = workbook.addWorksheet('日別推移');
+        wsDaily.columns = [
+          { header: '日付', key: 'date', width: 10 },
+          { header: '予約数', key: 'reservations', width: 10 },
+          { header: '来客数', key: 'people', width: 10 }
+        ];
+        wsDaily.getRow(1).font = { bold: true };
+
+        (report.dailySales || []).forEach(d => {
+          wsDaily.addRow({
+            date: formatMonthDay(d.date),
+            reservations: d.reservations,
+            people: d.people
+          });
+        });
+
+        // グラフをPNG化して貼り付け（画像扱い）
+        const dataUrl = canvas.toDataURL('image/png');
+        const base64 = dataUrl.split(',')[1];
+        const imageId = workbook.addImage({ base64, extension: 'png' });
+        // 位置は右側に配置（表が左、画像が右）
+        wsDaily.addImage(imageId, {
+          tl: { col: 4, row: 1 }, // D(0-based) + 1行目
+          ext: { width: 720, height: 320 }
+        });
+
+        // 2) 基本統計
+        const wsSummary = workbook.addWorksheet('基本統計');
+        wsSummary.columns = [{ width: 26 }, { width: 16 }];
+        wsSummary.addRow(['総営業日数', report.totalDays]);
+        wsSummary.addRow(['総予約数', report.totalReservations]);
+        wsSummary.addRow(['総来客数', report.totalPeople]);
+        wsSummary.addRow(['1日平均来客数', report.averageDailyPeople]);
+        wsSummary.addRow(['最も忙しかった日', report.busiestDay || '']);
+
+        // 3) メニュー別売上（XLSXに必ず入れる）
+        const wsMenu = workbook.addWorksheet('メニュー別売上');
+        wsMenu.columns = [
+          { header: 'メニュー名', key: 'menu', width: 30 },
+          { header: '売上数（個）', key: 'quantity', width: 15 }
+        ];
+        wsMenu.getRow(1).font = { bold: true };
+
+        const menuEntries = Object.entries(report.menuSales || {})
+          .map(([menu, quantity]) => ({ menu, quantity: Number(quantity || 0) }))
+          .sort((a, b) => b.quantity - a.quantity);
+
+        menuEntries.forEach(e => {
+          wsMenu.addRow({ menu: e.menu, quantity: e.quantity });
+        });
+
+        // 保存してダウンロード
+        const buffer = await workbook.xlsx.writeBuffer();
+        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
         const url = URL.createObjectURL(blob);
-        link.setAttribute('href', url);
-        const monthNum = parseInt(month, 10);
-        const monthLabel = `${monthNum}月`;
-        link.setAttribute('download', `monthly_report_${monthLabel}.csv`);
-        link.style.visibility = 'hidden';
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = fileName;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+        URL.revokeObjectURL(url);
 
-        alert('レポートをダウンロードしました！');
+        alert('グラフ付きXLSXをダウンロードしました！');
       } catch (error) {
         console.error('ダウンロードエラー:', error);
-        alert('ダウンロードに失敗しました。');
+        // フォールバック：CSVをShift_JISでダウンロード
+        try {
+          const csvRes = await fetch(`api/monthly-report.php?year=${year}&month=${month}&format=csv`);
+          const buf = await csvRes.arrayBuffer();
+          const bytes = new Uint8Array(buf);
+          const blob = new Blob([bytes], { type: 'text/csv;charset=Shift_JIS;' });
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = `monthly_report_${year}_${monthLabel}.csv`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          URL.revokeObjectURL(url);
+          alert('ExcelJSが読み込めなかったためCSVでダウンロードしました。');
+        } catch (e2) {
+          alert('グラフ付きXLSXのダウンロードに失敗しました。');
+        }
       }
     }
 
@@ -3050,9 +3186,19 @@
         adviceDateEl.value = new Date().toISOString().slice(0, 10);
       }
       // 現在の月を選択
-      const currentMonth = new Date().getMonth() + 1;
-      document.getElementById('report-month').value = currentMonth;
-      document.getElementById('ai-analysis-month').value = currentMonth;
+      const now = new Date();
+      const currentYear = now.getFullYear();
+      const currentMonth = now.getMonth() + 1;
+      const yyyy = String(currentYear);
+      const mm = String(currentMonth).padStart(2, '0');
+      const reportYmEl = document.getElementById('report-ym');
+      if (reportYmEl) {
+        reportYmEl.value = `${yyyy}-${mm}`;
+      }
+      const aiMonthEl = document.getElementById('ai-analysis-month');
+      if (aiMonthEl) {
+        aiMonthEl.value = currentMonth;
+      }
 
       // 予約一覧を30秒ごとに自動更新
       setInterval(() => {
