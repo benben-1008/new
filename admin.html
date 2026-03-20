@@ -1912,6 +1912,21 @@
             <h4>📅 日別売上データ</h4>
             ${dailyTable}
           </div>
+                
+                <div style="margin-bottom: 20px; background: white; padding: 15px; border-radius: 8px; border: 1px solid #e9ecef;">
+                  <h4 style="margin: 0 0 10px 0;">📈 日別の推移（予約数 / 来客数）</h4>
+                  <canvas id="monthly-daily-chart" style="width: 100%; height: 260px;"></canvas>
+                  <div style="margin-top: 8px; display:flex; gap: 12px; flex-wrap: wrap; font-size: 13px; color:#333;">
+                    <span style="display:inline-flex; align-items:center; gap:6px;">
+                      <span style="width:12px; height:12px; background:#28a745; display:inline-block; border-radius:2px;"></span>
+                      来客数（受け取り人数）
+                    </span>
+                    <span style="display:inline-flex; align-items:center; gap:6px;">
+                      <span style="width:12px; height:12px; background:#007bff; display:inline-block; border-radius:2px;"></span>
+                      予約数
+                    </span>
+                  </div>
+                </div>
           
           <div style="background: #e3f2fd; padding: 15px; border-radius: 8px;">
             <h4 style="margin-top: 0;">📈 分析結果</h4>
@@ -1920,6 +1935,114 @@
           </div>
         </div>
       `;
+      // グラフ描画（Excelとは別の画面内可視化）
+      try { renderMonthlyDailyChart(report); } catch (e) { console.error('グラフ描画エラー:', e); }
+    }
+
+    // 月間レポートの「日別推移」簡易グラフ
+    function renderMonthlyDailyChart(report) {
+      const canvas = document.getElementById('monthly-daily-chart');
+      if (!canvas) return;
+      const daily = (report && report.dailySales) ? report.dailySales : [];
+      if (!daily.length) return;
+      
+      // クリア
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      // 高DPI対応（必要最低限）
+      const cssWidth = canvas.clientWidth || 900;
+      const cssHeight = 260;
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = Math.floor(cssWidth * dpr);
+      canvas.height = Math.floor(cssHeight * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      
+      ctx.clearRect(0, 0, cssWidth, cssHeight);
+
+      const padding = { left: 48, right: 16, top: 18, bottom: 44 };
+      const plotW = cssWidth - padding.left - padding.right;
+      const plotH = cssHeight - padding.top - padding.bottom;
+      
+      const maxVal = Math.max(
+        1,
+        ...daily.map(d => Number(d.people || 0)),
+        ...daily.map(d => Number(d.reservations || 0))
+      );
+
+      // グリッド
+      const ticks = 5;
+      ctx.font = '12px sans-serif';
+      ctx.fillStyle = '#333';
+      ctx.strokeStyle = '#e9ecef';
+      ctx.lineWidth = 1;
+      for (let i = 0; i <= ticks; i++) {
+        const y = padding.top + plotH * (i / ticks);
+        ctx.beginPath();
+        ctx.moveTo(padding.left, y);
+        ctx.lineTo(padding.left + plotW, y);
+        ctx.stroke();
+
+        const val = Math.round(maxVal * (1 - i / ticks));
+        ctx.fillStyle = '#666';
+        ctx.fillText(String(val), 8, y + 4);
+      }
+
+      // 軸
+      ctx.strokeStyle = '#cfd8dc';
+      ctx.beginPath();
+      ctx.moveTo(padding.left, padding.top);
+      ctx.lineTo(padding.left, padding.top + plotH);
+      ctx.lineTo(padding.left + plotW, padding.top + plotH);
+      ctx.stroke();
+
+      // 棒（予約=青 / 来客=緑）
+      const barGroupW = plotW / daily.length;
+      const barW = Math.max(2, barGroupW * 0.28);
+      const gap = Math.max(2, barGroupW * 0.12);
+      const blue = '#007bff';
+      const green = '#28a745';
+
+      daily.forEach((d, idx) => {
+        const x0 = padding.left + barGroupW * idx;
+        const reservations = Number(d.reservations || 0);
+        const people = Number(d.people || 0);
+        
+        const hBlue = plotH * (reservations / maxVal);
+        const hGreen = plotH * (people / maxVal);
+
+        const yBase = padding.top + plotH;
+
+        // 予約（左）
+        ctx.fillStyle = blue;
+        ctx.fillRect(
+          x0 + (barGroupW - (barW * 2 + gap)) / 2,
+          yBase - hBlue,
+          barW,
+          hBlue
+        );
+        // 来客（右）
+        ctx.fillStyle = green;
+        ctx.fillRect(
+          x0 + (barGroupW - (barW * 2 + gap)) / 2 + barW + gap,
+          yBase - hGreen,
+          barW,
+          hGreen
+        );
+
+        // ラベル間引き
+        const showLabel = idx % 3 === 0 || idx === daily.length - 1;
+        if (showLabel) {
+          const date = String(d.date || '').slice(5); // MM-DD
+          ctx.fillStyle = '#666';
+          ctx.save();
+          ctx.translate(x0 + barGroupW / 2, yBase + 22);
+          ctx.rotate(-Math.PI / 4);
+          ctx.textAlign = 'right';
+          ctx.fillText(date, 0, 0);
+          ctx.restore();
+        }
+      });
     }
 
     async function downloadReport() {
@@ -1928,14 +2051,17 @@
 
       try {
         const response = await fetch(`api/monthly-report.php?year=${year}&month=${month}&format=csv`);
-        const csvData = await response.text();
+        // 文字化け対策：文字列で受けずバイトのまま Blob 化する
+        const buf = await response.arrayBuffer();
+        const bytes = new Uint8Array(buf);
 
-        // CSVファイルをダウンロード
-        const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
+        const blob = new Blob([bytes], { type: 'text/csv;charset=Shift_JIS;' });
         const link = document.createElement('a');
         const url = URL.createObjectURL(blob);
         link.setAttribute('href', url);
-        link.setAttribute('download', `monthly_report_${year}_${month.toString().padStart(2, '0')}.csv`);
+        const monthNum = parseInt(month, 10);
+        const monthLabel = `${monthNum}月`;
+        link.setAttribute('download', `monthly_report_${monthLabel}.csv`);
         link.style.visibility = 'hidden';
         document.body.appendChild(link);
         link.click();
