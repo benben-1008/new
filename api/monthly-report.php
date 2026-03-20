@@ -120,7 +120,7 @@ function generateMonthlyReport($year, $month) {
         'topMenu' => [],
         'averageDailyPeople' => 0,
         'busiestDay' => null,
-        'busiestTimeSlot' => null
+        // 'busiestTimeSlot' はユーザー要望により表示から削除
     ];
     
     // 日別データを初期化
@@ -203,15 +203,6 @@ function generateMonthlyReport($year, $month) {
         }
     }
     
-    // 最も忙しかった時間帯を特定
-    $maxTimeSlot = 0;
-    foreach ($report['timeSlotSales'] as $time => $quantity) {
-        if ($quantity > $maxTimeSlot) {
-            $maxTimeSlot = $quantity;
-            $report['busiestTimeSlot'] = $time;
-        }
-    }
-    
     return $report;
 }
 
@@ -249,7 +240,7 @@ function generateExcelReport($report) {
     $csv .= $csvCell('総来客数') . ',' . $csvCell($report['totalPeople']) . "\n";
     $csv .= $csvCell('1日平均来客数') . ',' . $csvCell($report['averageDailyPeople']) . "\n";
     $csv .= $csvCell('最も忙しかった日') . ',' . $csvCell($report['busiestDay']) . "\n";
-    $csv .= $csvCell('最も忙しかった時間帯') . ',' . $csvCell($report['busiestTimeSlot']) . "\n\n";
+    $csv .= "\n";
 
     $csv .= "メニュー別売上\n";
     $csv .= $csvCell('メニュー名') . ',' . $csvCell('売上数') . "\n";
