@@ -178,14 +178,15 @@ function performAIAnalysis($year, $month) {
     $reviews = readJsonSafe($dataDir . '/reviews.json');
     
     // 月間レポートを生成（関数を直接定義）
-    $reservationsFile = $dataDir . '/reservations.json';
+    // reservations.json は廃止して、sales-data.json の reservationList から集計する
     $archiveFile = $dataDir . '/reservations-archive.json';
+    $salesDataFile = $dataDir . '/sales-data.json';
     $holidaysFile = $dataDir . '/holidays.json';
     
-    // 予約データを読み込み（現在の予約 + アーカイブ）
-    $currentReservations = readJsonSafe($reservationsFile);
+    // 予約データ（sales-data.json）を読み込み
+    $salesData = readJsonSafe($salesDataFile);
+    // 互換性のために archive は読み込むが、主な集計は sales-data を優先する
     $archivedReservations = readJsonSafe($archiveFile);
-    $allReservations = array_merge($archivedReservations, $currentReservations);
     
     // 休業日データを読み込み
     $allHolidays = readJsonSafe($holidaysFile);
@@ -246,17 +247,12 @@ function performAIAnalysis($year, $month) {
         }
     }
     
-    // 指定された月の予約を抽出
-    $monthReservations = [];
-    foreach ($allReservations as $reservation) {
-        $reservationDate = $reservation['date'] ?? '';
-        $reservationYear = intval(substr($reservationDate, 0, 4));
-        $reservationMonth = intval(substr($reservationDate, 5, 2));
-        
-        if ($reservationYear === $year && $reservationMonth === $month) {
-            $monthReservations[] = $reservation;
-        }
-    }
+    // reservations.json を使わず、sales-data.json の day単位（reservationList）から月分を集計する
+    $isReceived = function ($reservation) {
+        if (!is_array($reservation)) return false;
+        $received = $reservation['received'] ?? null;
+        return $received === true || $received === 'true' || $received === 1 || $received === '1';
+    };
     
     // レポートデータを初期化
     $report = [
@@ -274,35 +270,56 @@ function performAIAnalysis($year, $month) {
     $dailyData = [];
     
     // 予約データを集計
-    foreach ($monthReservations as $reservation) {
-        $date = $reservation['date'] ?? '';
-        $people = intval($reservation['people'] ?? 1);
-        $food = $reservation['food'] ?? '';
-        $verified = isset($reservation['verified']) && ($reservation['verified'] === true || $reservation['verified'] === 'true' || $reservation['verified'] === 1);
-        
-        if (!isset($dailyData[$date])) {
-            $dailyData[$date] = [
-                'date' => $date,
-                'reservations' => 0,
-                'people' => 0
-            ];
-        }
-        
-        $dailyData[$date]['reservations'] += $people;
-        $report['totalReservations'] += $people;
-        
-        if ($verified) {
-            $dailyData[$date]['people'] += $people;
-            $report['totalPeople'] += $people;
-            
-            if ($food) {
-                if (!isset($report['menuSales'][$food])) {
-                    $report['menuSales'][$food] = 0;
+    foreach ($salesData as $date => $dayData) {
+        if (!is_array($dayData)) continue;
+
+        $dateYear = intval(substr((string)$date, 0, 4));
+        $dateMonth = intval(substr((string)$date, 5, 2));
+        if ($dateYear !== $year || $dateMonth !== $month) continue;
+
+        $dailyReservations = 0;
+        $dailyPeople = 0; // 来客数（received=true）
+        $dailyMenuSales = []; // menuSales（received=true のみ）
+
+        if (isset($dayData['reservationList']) && is_array($dayData['reservationList'])) {
+            foreach ($dayData['reservationList'] as $reservation) {
+                $p = intval($reservation['people'] ?? 1);
+                $dailyReservations += $p;
+
+                if ($isReceived($reservation)) {
+                    $dailyPeople += $p;
+                    $food = $reservation['food'] ?? '';
+                    if ($food) {
+                        if (!isset($dailyMenuSales[$food])) $dailyMenuSales[$food] = 0;
+                        $dailyMenuSales[$food] += $p;
+                    }
                 }
-                $report['menuSales'][$food] += $people;
             }
+        } else {
+            // 古い形式のフォールバック
+            $dailyReservations = intval($dayData['reservations'] ?? 0);
+            $dailyPeople = intval($dayData['people'] ?? 0);
+            $dailyMenuSales = $dayData['menuSales'] ?? [];
+        }
+
+        $dailyData[$date] = [
+            'date' => (string)$date,
+            'reservations' => $dailyReservations,
+            'people' => $dailyPeople,
+        ];
+
+        $report['totalReservations'] += $dailyReservations;
+        $report['totalPeople'] += $dailyPeople;
+
+        foreach ($dailyMenuSales as $food => $qty) {
+            if (!isset($report['menuSales'][$food])) $report['menuSales'][$food] = 0;
+            $report['menuSales'][$food] += intval($qty);
         }
     }
+
+    // reservations-archive 側の互換性が必要な場合はここで取り込めるが、
+    // 現状は archive が空のため、monthly集計は sales-data を優先している
+    // ※ 互換性が必要なら、archive の要素が reservationList と同等の形式か確認してから実装してください。
     
     // 日別データを配列に変換
     ksort($dailyData);

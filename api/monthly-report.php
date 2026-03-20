@@ -1,5 +1,6 @@
 <?php
-header('Content-Type: application/json; charset=utf-8');
+// フォーマット（JSON/CSV）に応じて Content-Type を切り替えるため、
+// ここでは JSON ヘッダを先に固定しない
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
@@ -12,7 +13,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 $dataDir = __DIR__ . '/../data';
-$salesFile = $dataDir . '/sales.json';
 
 if (!is_dir($dataDir)) {
     mkdir($dataDir, 0777, true);
@@ -29,6 +29,7 @@ function readJsonSafe($file) {
 // 月間レポートを生成
 function generateMonthlyReport($year, $month) {
     $dataDir = __DIR__ . '/../data';
+    // 月間レポートは sales-data.json を参照
     $salesDataFile = $dataDir . '/sales-data.json';
     $holidaysFile = $dataDir . '/holidays.json';
     
@@ -112,7 +113,7 @@ function generateMonthlyReport($year, $month) {
         'month' => $month,
         'totalDays' => $totalDays,
         'totalReservations' => 0, // 予約した人数の合計
-        'totalPeople' => 0, // 認証済み（verified=true）の人数
+        'totalPeople' => 0, // 受け取り（received=true）の人数
         'menuSales' => [],
         'dailySales' => [],
         'timeSlotSales' => [],
@@ -124,12 +125,40 @@ function generateMonthlyReport($year, $month) {
     
     // 日別データを初期化
     $dailyData = [];
+
+    // admin.html の「受け取り（received）」を来客数として集計するための判定
+    $isReceived = function ($reservation) {
+        if (!is_array($reservation)) return false;
+        $received = $reservation['received'] ?? null;
+        return $received === true || $received === 'true' || $received === 1 || $received === '1';
+    };
     
     // 売上データを集計
     foreach ($monthSalesData as $date => $dayData) {
         $reservations = intval($dayData['reservations'] ?? 0);
-        $people = intval($dayData['people'] ?? 0);
-        $menuSales = $dayData['menuSales'] ?? [];
+
+        // reservationList がある場合は received=true の合計を来客数にする
+        $hasReservationList = isset($dayData['reservationList']) && is_array($dayData['reservationList']);
+        if ($hasReservationList) {
+            $people = 0;
+            $menuSales = [];
+            foreach ($dayData['reservationList'] as $reservation) {
+                if (!$isReceived($reservation)) continue;
+
+                $p = intval($reservation['people'] ?? 1);
+                $people += $p;
+
+                $food = $reservation['food'] ?? '';
+                if ($food) {
+                    if (!isset($menuSales[$food])) $menuSales[$food] = 0;
+                    $menuSales[$food] += $p;
+                }
+            }
+        } else {
+            // 古いデータ等で reservationList が無い場合のフォールバック
+            $people = intval($dayData['people'] ?? 0);
+            $menuSales = $dayData['menuSales'] ?? [];
+        }
         
         // 日別データを設定
         $dailyData[$date] = [
@@ -165,7 +194,7 @@ function generateMonthlyReport($year, $month) {
     arsort($report['menuSales']);
     $report['topMenu'] = array_slice($report['menuSales'], 0, 5, true);
     
-    // 最も忙しかった日を特定（認証済み人数が最多の日）
+    // 最も忙しかった日を特定（来客数=受け取り人数が最多の日）
     $maxPeople = 0;
     foreach ($report['dailySales'] as $daily) {
         if ($daily['people'] > $maxPeople) {
@@ -188,44 +217,91 @@ function generateMonthlyReport($year, $month) {
 
 // Excel形式のCSVを生成
 function generateExcelReport($report) {
-    $csv = "月間レポート - {$report['year']}年{$report['month']}月\n\n";
+    // CSVセルの安全なエスケープ（Excelで列が崩れる/「#」になる原因の対策）
+    $csvCell = function ($value) {
+        $s = (string)($value ?? '');
+        // 改行・ダブルクォート・カンマがある場合は引用符で囲む
+        $needsQuote = preg_match('/[",\r\n]/u', $s) === 1;
+        if (!$needsQuote) return $s;
+        $escaped = str_replace('"', '""', $s);
+        return '"' . $escaped . '"';
+    };
+
+    // 日付表記を「YYYY-MM-DD」→「M/D」に変換（例: 2026-03-04 => 3/4）
+    $formatMonthDay = function ($dateStr) {
+        $s = (string)($dateStr ?? '');
+        if (preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $s, $m) === 1) {
+            $mNum = intval($m[2]);
+            $dNum = intval($m[3]);
+            return $mNum . '/' . $dNum;
+        }
+        return $s;
+    };
+
+    // Excelのロケール差対策：最初に区切り文字を明示
+    // （Shift_JISで返すのでBOMは付けない）
+    $csv = "sep=,\n\n";
+    // 年はファイル名等で混乱しやすいので月だけにする
+    $csv .= "月間レポート - " . $report['month'] . "月\n\n";
     $csv .= "基本統計\n";
-    $csv .= "総営業日数,{$report['totalDays']}\n";
-    $csv .= "総予約数,{$report['totalReservations']}\n";
-    $csv .= "総来客数,{$report['totalPeople']}\n";
-    $csv .= "1日平均来客数,{$report['averageDailyPeople']}\n";
-    $csv .= "最も忙しかった日,{$report['busiestDay']}\n";
-    $csv .= "最も忙しかった時間帯,{$report['busiestTimeSlot']}\n\n";
-    
+    $csv .= $csvCell('総営業日数') . ',' . $csvCell($report['totalDays']) . "\n";
+    $csv .= $csvCell('総予約数') . ',' . $csvCell($report['totalReservations']) . "\n";
+    $csv .= $csvCell('総来客数') . ',' . $csvCell($report['totalPeople']) . "\n";
+    $csv .= $csvCell('1日平均来客数') . ',' . $csvCell($report['averageDailyPeople']) . "\n";
+    $csv .= $csvCell('最も忙しかった日') . ',' . $csvCell($report['busiestDay']) . "\n";
+    $csv .= $csvCell('最も忙しかった時間帯') . ',' . $csvCell($report['busiestTimeSlot']) . "\n\n";
+
     $csv .= "メニュー別売上\n";
-    $csv .= "メニュー名,売上数\n";
+    $csv .= $csvCell('メニュー名') . ',' . $csvCell('売上数') . "\n";
     foreach ($report['menuSales'] as $menu => $quantity) {
-        $csv .= "{$menu},{$quantity}\n";
+        $csv .= $csvCell($menu) . ',' . $csvCell($quantity) . "\n";
     }
-    
+
     $csv .= "\n時間帯別売上\n";
-    $csv .= "時間帯,来客数\n";
+    $csv .= $csvCell('時間帯') . ',' . $csvCell('来客数') . "\n";
     foreach ($report['timeSlotSales'] as $time => $quantity) {
-        $csv .= "{$time},{$quantity}\n";
+        $csv .= $csvCell($time) . ',' . $csvCell($quantity) . "\n";
     }
-    
-    $csv .= "\n日別売上\n";
-    $csv .= "日付,予約数,来客数,メニュー別売上\n";
+
+    // Excelでグラフ作りやすいように、まずは日付・予約数・来客数だけの表を出す
+    $csv .= "\n日別（予約数 / 来客数）\n";
+    $csv .= $csvCell('日付') . ',' . $csvCell('予約数') . ',' . $csvCell('来客数') . "\n";
+    foreach ($report['dailySales'] as $daily) {
+        $csv .= $csvCell($formatMonthDay($daily['date'])) . ',' .
+            $csvCell($daily['reservations']) . ',' .
+            $csvCell($daily['people']) . "\n";
+    }
+
+    // メニュー別売上の詳細（要約文字列）
+    $csv .= "\n日別売上（メニュー別売上 要約）\n";
+    $csv .= $csvCell('日付') . ',' . $csvCell('予約数') . ',' . $csvCell('来客数') . ',' . $csvCell('メニュー別売上') . "\n";
     foreach ($report['dailySales'] as $daily) {
         $menuSales = $daily['menuSales'] ?? [];
         $menuSalesText = '';
         if (!empty($menuSales)) {
             $menuItems = [];
             foreach ($menuSales as $menu => $quantity) {
-                $menuItems[] = "{$menu}:{$quantity}";
+                $menuItems[] = $menu . ':' . $quantity;
             }
             $menuSalesText = implode(' / ', $menuItems);
         } else {
             $menuSalesText = 'データなし';
         }
-        $csv .= "{$daily['date']},{$daily['reservations']},{$daily['people']},\"{$menuSalesText}\"\n";
+
+        $csv .= $csvCell($formatMonthDay($daily['date'])) . ',' .
+            $csvCell($daily['reservations']) . ',' .
+            $csvCell($daily['people']) . ',' .
+            $csvCell($menuSalesText) . "\n";
     }
-    
+
+    // Excel互換のために改行をCRLF
+    $csv = str_replace("\n", "\r\n", $csv);
+
+    // ExcelがUTF-8として解釈できず文字化けするケースを避けるため Shift_JIS に変換
+    // （mbstring拡張が前提。なければ元UTF-8のまま返す）
+    if (function_exists('mb_convert_encoding')) {
+        $csv = mb_convert_encoding($csv, 'SJIS-win', 'UTF-8');
+    }
     return $csv;
 }
 
@@ -238,12 +314,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $report = generateMonthlyReport($year, $month);
     
     if ($format === 'csv') {
-        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Type: text/csv; charset=Shift_JIS');
         header('Content-Disposition: attachment; filename="monthly_report_' . $year . '_' . sprintf('%02d', $month) . '.csv"');
         header('X-Content-Type-Options: nosniff');
         header('Cache-Control: no-cache, max-age=0');
         echo generateExcelReport($report);
     } else {
+        header('Content-Type: application/json; charset=utf-8');
         echo json_encode($report, JSON_UNESCAPED_UNICODE);
     }
 } else {

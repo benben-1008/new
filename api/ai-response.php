@@ -1600,8 +1600,13 @@ function answerFromCafeteriaData($userMessage) {
     if (is_array($todayData) && isset($todayData['reservations'])) {
         $totalCount = (int) $todayData['reservations'];
     } else {
-        $reservations = readJsonSafe($dataDir . '/reservations.json');
-        $totalCount = is_array($reservations) ? count($reservations) : 0;
+        // reservations.json は廃止したため、sales-data.json 側の reservationList でフォールバックする
+        $totalCount = 0;
+        if (is_array($todayData) && isset($todayData['reservationList']) && is_array($todayData['reservationList'])) {
+            foreach ($todayData['reservationList'] as $r) {
+                $totalCount += intval($r['people'] ?? 1);
+            }
+        }
     }
 
     // 来客数予測を取得（ai-advice.phpから）
