@@ -276,7 +276,8 @@
                     <label for="daily-menu-food">定食メニュー:</label>
                     <input type="text" id="daily-menu-food" placeholder="例: カレーライス、日替わり定食" required>
                   </div>
-                  <button onclick="addDailyMenu()" class="btn btn-primary">定食を設定</button>
+                  <button id="btn-daily-menu-set" onclick="addDailyMenu()" class="btn btn-primary">定食を設定</button>
+                  <div id="daily-menu-holiday-warning" style="margin-top:10px; color:#dc3545; font-size:14px; display:none;"></div>
                 </div>
 
                 <div class="admin-card">
@@ -1042,6 +1043,22 @@
       const date = document.getElementById("daily-menu-date").value;
       const food = document.getElementById("daily-menu-food").value;
       if (!date || !food) return alert("日付と定食メニューを選択してください。");
+
+      // 休業日は定食設定できない（保存をブロック）
+      try {
+        const holidays = await apiGet('holidays.php');
+        const holiday = (holidays || []).find(h => (h.date || '') === date);
+        if (holiday) {
+          const reason = holiday.reason ? `（理由: ${holiday.reason}）` : '';
+          alert(`🚫 ${date} は休業日なので、定食設定はできません。${reason}`);
+          return;
+        }
+      } catch (e) {
+        // 休業日データが取れない場合でも誤って設定しないよう、ここでは続行しない
+        console.warn('休業日チェックに失敗:', e);
+        alert('休業日データの取得に失敗したため、定食設定を中止します。時間をおいて再度お試しください。');
+        return;
+      }
 
       const dailyMenus = await apiGet('daily-menu.php');
 
@@ -2845,6 +2862,51 @@
       if (holidaysSearch) holidaysSearch.addEventListener('input', () => loadHolidays());
       if (dailymenuSearch) dailymenuSearch.addEventListener('input', () => loadDailyMenus());
       if (eventsSearch) eventsSearch.addEventListener('input', () => loadEvents());
+
+      // 定食設定: 休業日ならボタン無効化
+      async function updateDailyMenuHolidayGuard() {
+        const dateEl = document.getElementById('daily-menu-date');
+        const btn = document.getElementById('btn-daily-menu-set');
+        const warn = document.getElementById('daily-menu-holiday-warning');
+        if (!dateEl || !btn || !warn) return;
+
+        const date = dateEl.value;
+        if (!date) {
+          btn.disabled = false;
+          warn.style.display = 'none';
+          warn.textContent = '';
+          return;
+        }
+
+        try {
+          const holidays = await apiGet('holidays.php');
+          const holiday = (holidays || []).find(h => (h.date || '') === date);
+          if (holiday) {
+            btn.disabled = true;
+            const reason = holiday.reason ? `（理由: ${holiday.reason}）` : '（理由: 休業日）';
+            warn.textContent = `🚫 ${date} は休業日なので、定食設定はできません。${reason}`;
+            warn.style.display = 'block';
+          } else {
+            btn.disabled = false;
+            warn.style.display = 'none';
+            warn.textContent = '';
+          }
+        } catch (e) {
+          // 取得失敗時は安全側（無効化）ではなく、利用者体験優先で有効化
+          btn.disabled = false;
+          warn.style.display = 'none';
+          warn.textContent = '';
+        }
+      }
+
+      const dailyMenuDateEl = document.getElementById('daily-menu-date');
+      if (dailyMenuDateEl) {
+        dailyMenuDateEl.addEventListener('change', () => {
+          updateDailyMenuHolidayGuard();
+        });
+        // 初期値のチェック
+        updateDailyMenuHolidayGuard();
+      }
 
       // データを読み込み
       loadMenus();
