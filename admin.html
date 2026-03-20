@@ -203,6 +203,13 @@
                   <div id="menu-list"></div>
                 </div>
               </div>
+
+              <div class="admin-card" style="margin-top:12px; padding:12px; background:#e8f5e9; border:1px solid #c8e6c9; border-radius:8px;">
+                <h4 style="margin:0 0 8px 0;">📦 メニュー残数リセット</h4>
+                <p style="margin:0 0 10px 0; font-size:14px; color:#333;">定食を含むメニューの残数は、<strong>日付が変わると自動で初期値にリセット</strong>されます。手動でリセットしたい場合は下のボタンを押してください。</p>
+                <button type="button" onclick="triggerMenuStockReset()" class="btn btn-secondary">今すぐ残数を初期値にリセット</button>
+                <span id="menu-reset-status" style="margin-left:10px; font-size:14px;"></span>
+              </div>
             </div>
           </div>
         </section>
@@ -283,12 +290,6 @@
                   </div>
                   <div id="daily-menu-list"></div>
                 </div>
-              </div>
-              <div class="admin-card" style="margin-top:12px; padding:12px; background:#e8f5e9; border:1px solid #c8e6c9; border-radius:8px;">
-                <h4 style="margin:0 0 8px 0;">📦 メニュー残数リセット</h4>
-                <p style="margin:0 0 10px 0; font-size:14px; color:#333;">定食を含むメニューの残数は、<strong>日付が変わると自動で初期値にリセット</strong>されます。手動でリセットしたい場合は下のボタンを押してください。</p>
-                <button type="button" onclick="triggerMenuStockReset()" class="btn btn-secondary">今すぐ残数を初期値にリセット</button>
-                <span id="menu-reset-status" style="margin-left:10px; font-size:14px;"></span>
               </div>
             </div>
           </div>
@@ -716,6 +717,7 @@
     }
 
     async function triggerMenuStockReset() {
+      if (!window.confirm('本当に残数を初期値にリセットしますか？')) return;
       const statusEl = document.getElementById('menu-reset-status');
       if (statusEl) statusEl.textContent = 'リセット中...';
       try {

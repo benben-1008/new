@@ -131,7 +131,9 @@
       const statusDiv = document.getElementById("status-display");
       const todayMenuDiv = document.getElementById("today-menu");
       const congestionDiv = document.getElementById("congestion-prediction");
-      const today = new Date().toISOString().split("T")[0];
+      // UTCではなくローカルの日付で「今日」を作る（タイムゾーン差で過去月が混ざるのを防ぐ）
+      const now = new Date();
+      const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
       const todayHoliday = holidays.find(h => h.date === today);
       let todayMenu = null;
       try {
@@ -185,12 +187,17 @@
         }
       }
 
-      // 今後の休業日
+      // 今後の休業日（未来/今日のみ）
       const listDiv = document.getElementById("holidays-list");
-      if (holidays.length === 0) {
-        listDiv.innerHTML = "<p>登録された休業日はありません。</p>";
+      const listHolidays = (holidays || [])
+        .filter(h => h && typeof h.date === 'string')
+        .filter(h => h.date >= today)
+        .sort((a, b) => a.date.localeCompare(b.date));
+
+      if (listHolidays.length === 0) {
+        listDiv.innerHTML = "<p>今後の休業日はありません。</p>";
       } else {
-        listDiv.innerHTML = holidays
+        listDiv.innerHTML = listHolidays
           .map(h => `<p>📅 ${h.date}　📝 ${h.reason || '休業日'}</p>`)
           .join("");
       }
@@ -294,6 +301,7 @@
         { name: '生徒用サイト (index.html)', file: 'index.html' },
         { name: '予約サイト (book.html)', file: 'book.html' },
         { name: '予約確認システム (verification.html)', file: 'verification.html' },
+        { name: '見守りシステム (mamori.html)', file: 'mamori.html' },
         { name: 'レビュー投稿 (review.html)', file: 'review.html' },
         { name: 'アレルギー情報 (allergy.html)', file: 'allergy.html' },
         { name: '食堂専用AIアシスタント (ai-assistant-php.html)', file: 'ai-assistant-php.html' }
