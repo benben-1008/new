@@ -331,10 +331,31 @@ function performAIAnalysis($year, $month) {
     }
     
     // 分析用のデータを準備
+    // レビューは「選択年月」のものを優先して抽出し、無い場合のみ最新データを補完する
+    $reviewsInMonth = [];
+    foreach ($reviews as $review) {
+        if (!is_array($review)) continue;
+        $reviewDate = (string)($review['date'] ?? '');
+        if (preg_match('/^(\d{4})-(\d{2})-\d{2}$/', $reviewDate, $m) === 1) {
+            $ry = intval($m[1]);
+            $rm = intval($m[2]);
+            if ($ry === $year && $rm === $month) {
+                $reviewsInMonth[] = $review;
+            }
+        }
+    }
+
     $reviewsText = '';
-    if (!empty($reviews)) {
+    $reviewsForPrompt = [];
+    if (!empty($reviewsInMonth)) {
+        $reviewsForPrompt = array_slice($reviewsInMonth, -20);
+    } elseif (!empty($reviews)) {
+        $reviewsForPrompt = array_slice($reviews, -20);
+    }
+
+    if (!empty($reviewsForPrompt)) {
         $reviewsText = "レビュー一覧:\n";
-        foreach (array_slice($reviews, -20) as $review) { // 最新20件
+        foreach ($reviewsForPrompt as $review) {
             $name = $review['name'] ?? '匿名';
             $comment = $review['comment'] ?? '';
             $date = $review['date'] ?? '';
@@ -364,7 +385,9 @@ function performAIAnalysis($year, $month) {
     }
     
     // AIプロンプトを作成
-    $systemPrompt = "あなたは学校食堂の経営分析の専門家です。提供されたデータを分析して、食堂の改善点と良い点をわかりやすく説明してください。";
+    $systemPrompt = "あなたは学校食堂の運営改善の専門家です。提供されたデータを分析し、学校環境に適した改善点と良い点をわかりやすく説明してください。"
+        . "校外向けの集客施策（SNS広告、インフルエンサー施策、一般向けクーポン等）は提案しないでください。"
+        . "提案は、学生・教職員を対象にした校内運用（提供スピード、並び列、売れ筋管理、掲示、学内連携、メニュー改善、食品ロス削減）を中心にしてください。";
     
     $userPrompt = "以下のデータを分析して、食堂の改善点と良い点を具体的に教えてください。
 
@@ -392,7 +415,12 @@ function performAIAnalysis($year, $month) {
 ### 💡 推奨事項
 - [改善のための具体的な推奨事項を3-5個挙げてください]
 
-回答は日本語で、わかりやすく、具体的に書いてください。";
+回答は日本語で、わかりやすく、具体的に書いてください。
+
+重要な制約:
+- 学校食堂で実行可能な施策のみ提案する
+- SNSプロモーション、外部広告、一般向けキャンペーンは提案しない
+- 学内掲示、校内放送、授業時間割に合わせた提供体制、学生導線改善などの校内施策を優先する";
 
     $config = getAIConfig();
     $timeout = $config['timeout'] ?? 120;
@@ -404,11 +432,28 @@ function performAIAnalysis($year, $month) {
         ['role' => 'user', 'content' => $userPrompt]
     ];
     
+    $dataSources = [
+        'period' => sprintf('%04d-%02d', $year, $month),
+        'files' => [
+            'reviews' => 'data/reviews.json',
+            'sales' => 'data/sales-data.json',
+            'holidays' => 'data/holidays.json',
+            'archive_fallback' => 'data/reservations-archive.json'
+        ],
+        'counts' => [
+            'reviews_total' => count($reviews),
+            'reviews_in_period' => count($reviewsInMonth),
+            'daily_records' => count($report['dailySales']),
+            'menu_kinds' => count($report['menuSales']),
+            'holiday_days_in_period' => count($monthHolidays)
+        ]
+    ];
+
     // OpenAIを試行
     if (($config['openai']['enabled'] ?? false) && !empty($config['openai']['api_key'])) {
         $response = callOpenAIAPI($messages, $config['openai'], $timeout, $connectTimeout);
         if ($response !== false) {
-            return ['analysis' => $response, 'api' => 'openai'];
+            return ['analysis' => $response, 'api' => 'openai', 'dataSources' => $dataSources];
         }
     }
     
@@ -416,7 +461,7 @@ function performAIAnalysis($year, $month) {
     if (($config['gemini']['enabled'] ?? false) && !empty($config['gemini']['api_key'])) {
         $response = callGeminiAPI($userPrompt, $config['gemini'], $timeout, $connectTimeout);
         if ($response !== false) {
-            return ['analysis' => $response, 'api' => 'gemini'];
+            return ['analysis' => $response, 'api' => 'gemini', 'dataSources' => $dataSources];
         }
     }
     
@@ -424,7 +469,7 @@ function performAIAnalysis($year, $month) {
     if (($config['groq']['enabled'] ?? false) && !empty($config['groq']['api_key'])) {
         $response = callGroqAPI($messages, $config['groq'], $timeout, $connectTimeout);
         if ($response !== false) {
-            return ['analysis' => $response, 'api' => 'groq'];
+            return ['analysis' => $response, 'api' => 'groq', 'dataSources' => $dataSources];
         }
     }
     

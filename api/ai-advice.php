@@ -23,12 +23,184 @@ function getAIConfig() {
         } else {
             $config = [
                 'openai' => ['enabled' => false, 'api_key' => '', 'model' => 'gpt-3.5-turbo', 'base_url' => 'https://api.openai.com/v1'],
+                'gemini' => ['enabled' => false, 'api_key' => '', 'model' => 'gemini-1.5-flash', 'base_url' => 'https://generativelanguage.googleapis.com/v1beta'],
                 'timeout' => 120,
                 'connect_timeout' => 15,
             ];
         }
     }
     return $config;
+}
+
+// Gemini APIを呼び出し
+function callGeminiAPI($prompt, $apiConfig, $timeout = 120, $connectTimeout = 15) {
+    $ch = curl_init();
+    $model = $apiConfig['model'] ?? 'gemini-1.5-flash';
+    $baseUrl = $apiConfig['base_url'] ?? 'https://generativelanguage.googleapis.com/v1beta';
+    $url = $baseUrl . '/models/' . $model . ':generateContent?key=' . $apiConfig['api_key'];
+
+    curl_setopt($ch, CURLOPT_URL, $url);
+    curl_setopt($ch, CURLOPT_POST, true);
+    $requestBody = [
+        'contents' => [['parts' => [['text' => $prompt]]]]
+    ];
+    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($requestBody, JSON_UNESCAPED_UNICODE));
+    curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, $timeout);
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, $connectTimeout);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $error = curl_error($ch);
+    curl_close($ch);
+
+    if ($error) {
+        error_log("Gemini API error: " . $error);
+        return false;
+    }
+
+    if ($httpCode === 200) {
+        $data = json_decode($response, true);
+        if (isset($data['candidates'][0]['content']['parts'][0]['text'])) {
+            return trim($data['candidates'][0]['content']['parts'][0]['text']);
+        }
+    }
+
+    error_log("Gemini API failed: HTTP $httpCode");
+    return false;
+}
+
+// 来客予測向け: Gemini API詳細呼び出し（成功/失敗理由を返す）
+function callGeminiAPIWithStatus($prompt, $apiConfig, $timeout = 120, $connectTimeout = 15) {
+    $ch = curl_init();
+    $model = $apiConfig['model'] ?? 'gemini-1.5-flash';
+    $baseUrl = $apiConfig['base_url'] ?? 'https://generativelanguage.googleapis.com/v1beta';
+    $url = $baseUrl . '/models/' . $model . ':generateContent?key=' . $apiConfig['api_key'];
+
+    curl_setopt($ch, CURLOPT_URL, $url);
+    curl_setopt($ch, CURLOPT_POST, true);
+    $requestBody = [
+        'contents' => [['parts' => [['text' => $prompt]]]]
+    ];
+    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($requestBody, JSON_UNESCAPED_UNICODE));
+    curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, $timeout);
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, $connectTimeout);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $error = curl_error($ch);
+    curl_close($ch);
+
+    if ($error) {
+        return ['ok' => false, 'text' => null, 'reason' => 'curl_error', 'httpCode' => $httpCode];
+    }
+
+    if ($httpCode === 200) {
+        $data = json_decode($response, true);
+        $text = $data['candidates'][0]['content']['parts'][0]['text'] ?? null;
+        if (is_string($text) && trim($text) !== '') {
+            return ['ok' => true, 'text' => trim($text), 'reason' => null, 'httpCode' => $httpCode];
+        }
+        return ['ok' => false, 'text' => null, 'reason' => 'empty_response', 'httpCode' => $httpCode];
+    }
+
+    return ['ok' => false, 'text' => null, 'reason' => 'http_error', 'httpCode' => $httpCode];
+}
+
+// 来客予測レスポンスから予測人数を抽出
+function extractAttendancePredictionNumber($text) {
+    if (!is_string($text) || trim($text) === '') {
+        return null;
+    }
+
+    if (preg_match('/予測来客数[:：]?\s*約?\s*(\d+)\s*人/u', $text, $m)) {
+        return intval($m[1]);
+    }
+    if (preg_match('/来客数予測[^\n]*約?\s*(\d+)\s*人/u', $text, $m)) {
+        return intval($m[1]);
+    }
+    if (preg_match('/約?\s*(\d+)\s*人/u', $text, $m)) {
+        return intval($m[1]);
+    }
+
+    return null;
+}
+
+// 来客予測用: Gemini/OpenAIの両方を呼び出して結果を返す
+function callAIForAttendancePrediction($messages, $config) {
+    $timeout = $config['timeout'] ?? 120;
+    $connectTimeout = $config['connect_timeout'] ?? 15;
+    $responses = [];
+    $statuses = [];
+
+    // 1) Gemini
+    if (($config['gemini']['enabled'] ?? false) && !empty($config['gemini']['api_key'])) {
+        $flatPrompt = '';
+        foreach ($messages as $m) {
+            $role = $m['role'] ?? 'user';
+            $content = $m['content'] ?? '';
+            if ($role === 'system') {
+                $flatPrompt .= "[システム指示]\n{$content}\n\n";
+            } else {
+                $flatPrompt .= "[ユーザー]\n{$content}\n\n";
+            }
+        }
+        $geminiResult = callGeminiAPIWithStatus($flatPrompt, $config['gemini'], $timeout, $connectTimeout);
+        $statuses['gemini'] = [
+            'attempted' => true,
+            'ok' => $geminiResult['ok'],
+            'httpCode' => $geminiResult['httpCode'],
+            'reason' => $geminiResult['reason']
+        ];
+        if ($geminiResult['ok']) {
+            $responses['gemini'] = $geminiResult['text'];
+        }
+    } else {
+        $statuses['gemini'] = ['attempted' => false, 'ok' => false, 'httpCode' => null, 'reason' => 'not_configured'];
+    }
+
+    // 2) OpenAI
+    if (($config['openai']['enabled'] ?? false) && !empty($config['openai']['api_key'])) {
+        $openaiResult = callOpenAIAPIWithStatus($messages, $config['openai'], $timeout, $connectTimeout);
+        $statuses['openai'] = [
+            'attempted' => true,
+            'ok' => $openaiResult['ok'],
+            'httpCode' => $openaiResult['httpCode'],
+            'reason' => $openaiResult['reason']
+        ];
+        if ($openaiResult['ok']) {
+            $responses['openai'] = $openaiResult['text'];
+        }
+    } else {
+        $statuses['openai'] = ['attempted' => false, 'ok' => false, 'httpCode' => null, 'reason' => 'not_configured'];
+    }
+
+    return ['responses' => $responses, 'statuses' => $statuses];
+}
+
+function readHolidays() {
+    global $dataDir;
+    $file = $dataDir . '/holidays.json';
+    if (!file_exists($file)) return [];
+    $content = @file_get_contents($file);
+    if ($content === false || $content === '') return [];
+    $json = json_decode($content, true);
+    return is_array($json) ? $json : [];
+}
+
+function readEvents() {
+    global $dataDir;
+    $file = $dataDir . '/events.json';
+    if (!file_exists($file)) return [];
+    $content = @file_get_contents($file);
+    if ($content === false || $content === '') return [];
+    $json = json_decode($content, true);
+    return is_array($json) ? $json : [];
 }
 
 // OpenAI APIを呼び出し
@@ -73,6 +245,50 @@ function callOpenAIAPI($messages, $apiConfig, $timeout = 120, $connectTimeout = 
     
     error_log("OpenAI API failed: HTTP $httpCode");
     return false;
+}
+
+// 来客予測向け: OpenAI API詳細呼び出し（成功/失敗理由を返す）
+function callOpenAIAPIWithStatus($messages, $apiConfig, $timeout = 120, $connectTimeout = 15) {
+    $ch = curl_init();
+    $url = ($apiConfig['base_url'] ?? 'https://api.openai.com/v1') . '/chat/completions';
+    
+    curl_setopt($ch, CURLOPT_URL, $url);
+    curl_setopt($ch, CURLOPT_POST, true);
+    $requestBody = [
+        'model' => $apiConfig['model'] ?? 'gpt-3.5-turbo',
+        'messages' => $messages,
+        'temperature' => 0.7,
+        'max_tokens' => 2000,
+    ];
+    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($requestBody, JSON_UNESCAPED_UNICODE));
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Content-Type: application/json',
+        'Authorization: Bearer ' . $apiConfig['api_key']
+    ]);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, $timeout);
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, $connectTimeout);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $error = curl_error($ch);
+    curl_close($ch);
+    
+    if ($error) {
+        return ['ok' => false, 'text' => null, 'reason' => 'curl_error', 'httpCode' => $httpCode];
+    }
+    
+    if ($httpCode === 200) {
+        $data = json_decode($response, true);
+        $text = $data['choices'][0]['message']['content'] ?? null;
+        if (is_string($text) && trim($text) !== '') {
+            return ['ok' => true, 'text' => trim($text), 'reason' => null, 'httpCode' => $httpCode];
+        }
+        return ['ok' => false, 'text' => null, 'reason' => 'empty_response', 'httpCode' => $httpCode];
+    }
+    
+    return ['ok' => false, 'text' => null, 'reason' => 'http_error', 'httpCode' => $httpCode];
 }
 
 // 来客数データを読み込む
@@ -424,9 +640,11 @@ function calculateDayOfWeekStats($attendanceDataWithDays) {
 // 来客数予測を生成（改善版：曜日別分析を含む）
 function predictAttendance($attendanceData = [], $attendanceDataWithDays = []) {
     $config = getAIConfig();
-    
-    if (!($config['openai']['enabled'] ?? false) || empty($config['openai']['api_key'])) {
-        return ['error' => 'OpenAI APIが設定されていません'];
+
+    $hasGemini = ($config['gemini']['enabled'] ?? false) && !empty($config['gemini']['api_key']);
+    $hasOpenAI = ($config['openai']['enabled'] ?? false) && !empty($config['openai']['api_key']);
+    if (!$hasGemini && !$hasOpenAI) {
+        return ['error' => 'Gemini/OpenAI APIが設定されていません'];
     }
     
     if (empty($attendanceData)) {
@@ -434,6 +652,24 @@ function predictAttendance($attendanceData = [], $attendanceDataWithDays = []) {
     }
     
     $todayDayOfWeek = getTodayDayOfWeek();
+    $todayDate = date('Y-m-d');
+
+    // 祝日・行事お知らせ情報
+    $holidays = readHolidays();
+    $events = readEvents();
+    $todayHoliday = null;
+    foreach ($holidays as $h) {
+        if (($h['date'] ?? '') === $todayDate) {
+            $todayHoliday = $h;
+            break;
+        }
+    }
+    $todayEvents = [];
+    foreach ($events as $e) {
+        if (($e['date'] ?? '') === $todayDate) {
+            $todayEvents[] = trim((string)($e['description'] ?? ''));
+        }
+    }
     
     // 全体統計
     $avgAttendance = array_sum($attendanceData) / count($attendanceData);
@@ -462,7 +698,8 @@ function predictAttendance($attendanceData = [], $attendanceDataWithDays = []) {
         $recentAvg = round(array_sum($recentData) / count($recentData));
     }
     
-    $systemPrompt = "あなたは来客数予測の専門家です。過去のデータを多角的に分析して、今日の来客数を正確に予測してください。曜日別の傾向、最近の傾向、統計的な分析を総合的に考慮してください。";
+    $systemPrompt = "あなたは学校食堂の来客数予測の専門家です。過去データを多角的に分析し、今日の来客数を予測してください。"
+        . "曜日傾向・最近の傾向・統計に加えて、祝日/休業日と校内の行事・お知らせの影響を必ず考慮してください。";
     
     $userPrompt = "【過去の来客数データ - 全体統計】\n";
     $userPrompt .= "- 平均：約" . round($avgAttendance) . "人\n";
@@ -499,7 +736,27 @@ function predictAttendance($attendanceData = [], $attendanceDataWithDays = []) {
     $userPrompt .= "3. 統計的な分析（平均、中央値、最大、最小）\n";
     $userPrompt .= "4. 季節や時期による変動\n";
     $userPrompt .= "5. データの信頼性（データ数が多いほど信頼性が高い）\n\n";
+    $userPrompt .= "6. 祝日・休業日の影響\n";
+    $userPrompt .= "7. 行事・お知らせ（学校イベント等）の影響\n\n";
     $userPrompt .= "今日は{$todayDayOfWeek}曜日です。\n\n";
+    if ($todayHoliday) {
+        $reason = (string)($todayHoliday['reason'] ?? '休業日');
+        $userPrompt .= "【本日の祝日/休業情報】\n- {$todayDate} は休業扱い（理由: {$reason}）\n";
+        $userPrompt .= "- 休業日であれば来客数は通常より大幅減（必要に応じて0〜ごく少数）を優先して見積もってください。\n\n";
+    } else {
+        $userPrompt .= "【本日の祝日/休業情報】\n- {$todayDate} は通常営業日（休業登録なし）\n\n";
+    }
+    if (!empty($todayEvents)) {
+        $userPrompt .= "【本日の行事・お知らせ】\n";
+        foreach ($todayEvents as $ev) {
+            if ($ev !== '') {
+                $userPrompt .= "- {$ev}\n";
+            }
+        }
+        $userPrompt .= "行事内容に応じて来客増減を見積もってください。\n\n";
+    } else {
+        $userPrompt .= "【本日の行事・お知らせ】\n- 特記事項なし\n\n";
+    }
     $userPrompt .= "これらのデータを基に、多角的な分析を行い、今日の来客数を予測してください。\n\n";
     $userPrompt .= "以下の形式で回答してください：\n\n【来客数予測】\n\n予測来客数：約[人数]人\n\n【分析根拠】\n";
     $userPrompt .= "1. 曜日別分析：[同じ曜日の傾向]\n";
@@ -512,10 +769,12 @@ function predictAttendance($attendanceData = [], $attendanceDataWithDays = []) {
         ['role' => 'system', 'content' => $systemPrompt],
         ['role' => 'user', 'content' => $userPrompt]
     ];
-    
-    $response = callOpenAIAPI($messages, $config['openai'], $config['timeout'] ?? 120, $config['connect_timeout'] ?? 15);
-    
-    if ($response === false) {
+
+    $aiCallResult = callAIForAttendancePrediction($messages, $config);
+    $aiResponses = $aiCallResult['responses'] ?? [];
+    $apiStatuses = $aiCallResult['statuses'] ?? [];
+
+    if (empty($aiResponses)) {
         // AI APIが失敗した場合、曜日別統計があればそれを使用
         if (!empty($dayOfWeekStats) && isset($dayOfWeekStats[$todayDayOfWeek])) {
             $prediction = $dayOfWeekStats[$todayDayOfWeek]['avg'];
@@ -536,8 +795,69 @@ function predictAttendance($attendanceData = [], $attendanceDataWithDays = []) {
             'details' => "過去の平均値（{$prediction}人）を基に予測しました。"
         ];
     }
-    
-    return ['prediction' => $response, 'confidence' => 'high', 'method' => 'ai_advanced'];
+
+    $geminiResponse = $aiResponses['gemini'] ?? null;
+    $openaiResponse = $aiResponses['openai'] ?? null;
+    $geminiNumber = extractAttendancePredictionNumber($geminiResponse);
+    $openaiNumber = extractAttendancePredictionNumber($openaiResponse);
+
+    // 両APIが成功した場合は統合
+    if ($geminiResponse !== null && $openaiResponse !== null) {
+        $mergedPredictionNumber = null;
+        if ($geminiNumber !== null && $openaiNumber !== null) {
+            $mergedPredictionNumber = round(($geminiNumber + $openaiNumber) / 2);
+        } elseif ($geminiNumber !== null) {
+            $mergedPredictionNumber = $geminiNumber;
+        } elseif ($openaiNumber !== null) {
+            $mergedPredictionNumber = $openaiNumber;
+        }
+
+        $mergedText = "【統合来客数予測】\n";
+        if ($mergedPredictionNumber !== null) {
+            $mergedText .= "予測来客数：約{$mergedPredictionNumber}人（Gemini/OpenAI統合）\n\n";
+        } else {
+            $mergedText .= "予測来客数：両APIの文章分析結果を統合（数値抽出不可）\n\n";
+        }
+        $mergedText .= "【Geminiの分析】\n" . $geminiResponse . "\n\n";
+        $mergedText .= "【OpenAIの分析】\n" . $openaiResponse;
+
+        return [
+            'prediction' => $mergedText,
+            'confidence' => 'high',
+            'method' => 'ai_dual_ensemble',
+            'usedApi' => 'gemini+openai',
+            'usedApis' => ['gemini', 'openai'],
+            'apiStatuses' => $apiStatuses,
+            'predictionNumber' => $mergedPredictionNumber,
+            'individualPredictions' => [
+                'gemini' => $geminiNumber,
+                'openai' => $openaiNumber
+            ]
+        ];
+    }
+
+    // 片方のみ成功した場合は、その結果を返す
+    if ($geminiResponse !== null) {
+        return [
+            'prediction' => $geminiResponse,
+            'confidence' => 'high',
+            'method' => 'ai_advanced',
+            'usedApi' => 'gemini',
+            'usedApis' => ['gemini'],
+            'apiStatuses' => $apiStatuses,
+            'predictionNumber' => $geminiNumber
+        ];
+    }
+
+    return [
+        'prediction' => $openaiResponse,
+        'confidence' => 'high',
+        'method' => 'ai_advanced',
+        'usedApi' => 'openai',
+        'usedApis' => ['openai'],
+        'apiStatuses' => $apiStatuses,
+        'predictionNumber' => $openaiNumber
+    ];
 }
 
 // 来客数予測の数値を取得（簡易版：統計的な予測）
