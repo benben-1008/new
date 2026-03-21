@@ -2122,20 +2122,30 @@
         }
         const workbook = new ExcelJS.Workbook();
 
-        // 1) 日別推移（表 + グラフ画像）
-        const wsDaily = workbook.addWorksheet('日別推移');
+        // 1) 日別売上（表 + グラフ画像）
+        const wsDaily = workbook.addWorksheet('日別売上');
         wsDaily.columns = [
           { header: '日付', key: 'date', width: 10 },
           { header: '予約数', key: 'reservations', width: 10 },
-          { header: '来客数', key: 'people', width: 10 }
+          { header: '来客数', key: 'people', width: 10 },
+          { header: 'メニュー別売上', key: 'menuSalesText', width: 48 }
         ];
         wsDaily.getRow(1).font = { bold: true };
 
         (report.dailySales || []).forEach(d => {
+          const menuSales = d.menuSales || {};
+          const menuSalesText = Object.keys(menuSales).length > 0
+            ? Object.entries(menuSales)
+              .sort((a, b) => Number(b[1] || 0) - Number(a[1] || 0))
+              .map(([menu, qty]) => `${menu}:${qty}個`)
+              .join(' / ')
+            : 'データなし';
+
           wsDaily.addRow({
             date: formatMonthDay(d.date),
             reservations: d.reservations,
-            people: d.people
+            people: d.people,
+            menuSalesText
           });
         });
 
