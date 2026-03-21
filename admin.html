@@ -393,7 +393,7 @@
                   </div>
                 </div>
                 <p style="color: #666; font-size: 14px; margin-top: 10px;">
-                  💡 シフト表のセルをクリックすると記号を選択できます（〇=出勤、X=休み、受=受付、H=残業、数字=その他）
+                  💡 シフト表のセルをクリックすると、出勤・休み・半日・残業を選択できます。
                 </p>
                 <div id="shifts-list"></div>
               </div>
@@ -512,8 +512,11 @@
               <div class="admin-card">
                 <h3>AIによるデータ分析</h3>
                 <p style="color: #666; margin-bottom: 15px;">
-                  レビューや売上データをAIが分析し、改善点や良い点をわかりやすく提示します。
+                  選択した年月のデータ（売上・来客・レビュー）をAIが分析し、改善点と良い点を提示します。
                 </p>
+                <div style="margin-bottom: 12px; padding: 10px 12px; background: #eef7ff; border: 1px solid #cfe8ff; border-radius: 8px; color: #245;">
+                  <strong>参照データ:</strong> <code>data/sales-data.json</code>（日別予約/来客）・<code>data/reviews.json</code>（レビュー）・<code>data/holidays.json</code>（営業日算出）
+                </div>
                 <div class="form-group">
                   <label for="ai-analysis-year">年:</label>
                   <select id="ai-analysis-year">
@@ -539,10 +542,13 @@
                     <option value="12">12月</option>
                   </select>
                 </div>
-                <div style="margin-bottom:10px;">
+                <div style="margin-bottom:10px; display:flex; gap:8px; flex-wrap:wrap;">
+                  <button type="button" onclick="setAIAnalysisToCurrentMonth()" class="btn btn-secondary">今月に合わせる</button>
                   <button onclick="performAIAnalysis()" class="btn btn-primary">🤖 AI分析を実行</button>
                 </div>
-                <div id="ai-analysis-display"></div>
+                <div id="ai-analysis-display">
+                  <p style="color:#6c757d;">年月を選択して「AI分析を実行」を押してください。実行後に実際の参照件数も表示されます。</p>
+                </div>
               </div>
             </div>
           </div>
@@ -2221,6 +2227,32 @@
     }
 
     // === AI分析 ===
+    function setAIAnalysisToCurrentMonth() {
+      const now = new Date();
+      const yearEl = document.getElementById('ai-analysis-year');
+      const monthEl = document.getElementById('ai-analysis-month');
+      if (yearEl) yearEl.value = String(now.getFullYear());
+      if (monthEl) monthEl.value = String(now.getMonth() + 1);
+    }
+
+    function renderAIDataSources(result) {
+      const src = result?.dataSources || {};
+      const counts = src.counts || {};
+      const files = src.files || {};
+      const period = src.period || '-';
+      return `
+        <div style="margin-bottom: 12px; padding: 12px; background: #fff; border: 1px solid #d7e6f7; border-radius: 8px;">
+          <h4 style="margin: 0 0 8px 0; color: #334;">参照データ内訳（${period}）</h4>
+          <div style="font-size: 13px; color: #445; line-height: 1.7;">
+            <div>・売上/来客: ${files.sales || 'data/sales-data.json'}（日別データ ${Number(counts.daily_records || 0)}件）</div>
+            <div>・レビュー: ${files.reviews || 'data/reviews.json'}（対象月 ${Number(counts.reviews_in_period || 0)}件 / 全体 ${Number(counts.reviews_total || 0)}件）</div>
+            <div>・営業日算出: ${files.holidays || 'data/holidays.json'}（対象月の休業日 ${Number(counts.holiday_days_in_period || 0)}日）</div>
+            <div>・メニュー種類数: ${Number(counts.menu_kinds || 0)}件</div>
+          </div>
+        </div>
+      `;
+    }
+
     async function performAIAnalysis() {
       const year = document.getElementById('ai-analysis-year').value;
       const month = document.getElementById('ai-analysis-month').value;
@@ -2235,8 +2267,7 @@
       `;
 
       try {
-        const response = await fetch(`api/ai-analysis.php?year=${year}&month=${month}`);
-        const result = await response.json();
+        const result = await apiGet(`ai-analysis.php?year=${year}&month=${month}`);
 
         if (result.error) {
           displayDiv.innerHTML = `
@@ -2252,11 +2283,21 @@
         }
 
         if (result.analysis) {
-          // Markdown形式のテキストをHTMLに変換（簡易版）
-          let analysisHtml = result.analysis
-            .replace(/\n/g, '<br>')
-            .replace(/## (.*?)(<br>|$)/g, '<h3 style="color: #333; margin-top: 20px; margin-bottom: 10px;">$1</h3>')
-            .replace(/### (.*?)(<br>|$)/g, '<h4 style="color: #555; margin-top: 15px; margin-bottom: 8px;">$1</h4>')
+          // Markdown形式のテキストをHTMLに変換（# が残らないよう行単位で処理）
+          const analysisHtml = result.analysis
+            .split('\n')
+            .map(line => {
+              if (/^###\s+/.test(line)) {
+                const text = line.replace(/^###\s+/, '');
+                return `<h4 style="color: #555; margin-top: 15px; margin-bottom: 8px;">${text}</h4>`;
+              }
+              if (/^##\s+/.test(line)) {
+                const text = line.replace(/^##\s+/, '');
+                return `<h3 style="color: #333; margin-top: 20px; margin-bottom: 10px;">${text}</h3>`;
+              }
+              return line;
+            })
+            .join('<br>')
             .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
             .replace(/✅/g, '<span style="color: #28a745;">✅</span>')
             .replace(/🔧/g, '<span style="color: #ffc107;">🔧</span>')
@@ -2271,6 +2312,7 @@
                   使用API: ${result.api || '不明'}
                 </span>
               </div>
+              ${renderAIDataSources(result)}
               <div style="background-color: white; padding: 20px; border-radius: 8px; border: 1px solid #ddd; line-height: 1.8; color: #333;">
                 ${analysisHtml}
               </div>
@@ -2530,11 +2572,11 @@
         html += '</tr>';
 
         // H残業行（常に表示）
-        const hasOvertime = monthShifts.some(s => s.name === name && (s.symbol === 'H' || s.role === 'H残業'));
+        const hasOvertime = monthShifts.some(s => s.name === name && (s.symbol === 'H' || s.symbol === '残業' || s.role === 'H残業' || s.role === '残業'));
         // 常にH残業行を表示
         {
           html += '<tr>';
-          html += `<td style="border: 1px solid #ccc; padding: 6px; text-align: left; position: sticky; left: 0; background-color: #fafafa; z-index: 5;"><small style="color: #666;">H残業</small></td>`;
+          html += `<td style="border: 1px solid #ccc; padding: 6px; text-align: left; position: sticky; left: 0; background-color: #fafafa; z-index: 5;"><small style="color: #666;">残業</small></td>`;
 
           for (let day = 1; day <= daysInMonth; day++) {
             const date = new Date(year, month - 1, day);
@@ -2542,13 +2584,13 @@
             const isWeekend = dayOfWeek === '日' || dayOfWeek === '土';
 
             const dayShifts = shiftsByDateAndName[day]?.[name] || [];
-            const overtimeShifts = dayShifts.filter(s => s.symbol === 'H' || s.role === 'H残業');
+            const overtimeShifts = dayShifts.filter(s => s.symbol === 'H' || s.symbol === '残業' || s.role === 'H残業' || s.role === '残業');
 
             let cellContent = '';
             let currentSymbol = '';
             if (overtimeShifts.length > 0) {
-              currentSymbol = 'H';
-              cellContent = 'H';
+              currentSymbol = '残業';
+              cellContent = '残業';
               if (overtimeShifts.length > 1) {
                 cellContent += `(${overtimeShifts.length})`;
               }
@@ -2570,16 +2612,13 @@
     // 記号選択ポップアップを表示
     function openShiftSymbolSelector(name, date, type, day, currentSymbol) {
       const symbols = [
-        { value: '〇', label: '〇（出勤）' },
-        { value: 'X', label: 'X（休み）' },
-        { value: '受', label: '受（受付）' },
-        { value: '1', label: '1' },
-        { value: '2', label: '2' },
-        { value: '3', label: '3' },
-        { value: 'H', label: 'H（残業）', onlyOvertime: true }
+        { value: '出勤', label: '出勤' },
+        { value: '休み', label: '休み' },
+        { value: '半日', label: '半日' },
+        { value: '残業', label: '残業', onlyOvertime: true }
       ];
 
-      // 通常シフト行の場合はHを除外
+      // 通常シフト行では残業を除外
       const availableSymbols = type === 'normal'
         ? symbols.filter(s => !s.onlyOvertime)
         : symbols;
@@ -2595,7 +2634,7 @@
       popup.id = 'shift-symbol-popup';
       popup.style.cssText = 'position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; border: 2px solid #007bff; border-radius: 8px; padding: 20px; z-index: 10000; box-shadow: 0 4px 20px rgba(0,0,0,0.3); max-width: 500px;';
       popup.innerHTML = `
-        <h3 style="margin-top: 0;">記号を選択</h3>
+        <h3 style="margin-top: 0;">シフト種別を選択</h3>
         <p style="margin-bottom: 15px; color: #666;">${escapeHtml(name)} - ${date}</p>
         <div style="display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 15px;">
           ${optionsHtml}
@@ -2639,9 +2678,9 @@
 
         // タイプに応じてフィルタリング
         if (type === 'normal') {
-          return shift.symbol === 'H' || shift.role === 'H残業';
+          return shift.symbol === 'H' || shift.symbol === '残業' || shift.role === 'H残業' || shift.role === '残業';
         } else {
-          return shift.symbol !== 'H' && shift.role !== 'H残業';
+          return shift.symbol !== 'H' && shift.symbol !== '残業' && shift.role !== 'H残業' && shift.role !== '残業';
         }
       });
 
@@ -2654,7 +2693,7 @@
           startTime: '09:00',
           endTime: '18:00',
           symbol: symbol,
-          role: symbol === 'H' ? 'H残業' : (symbol === '受' ? '受付' : '')
+          role: symbol === '残業' ? '残業' : ''
         };
         filteredShifts.push(newShift);
       }
@@ -3076,10 +3115,19 @@
         } else {
           predictionText = `予測来客数: 約${data.prediction}人<br>${data.details || ''}`;
         }
+        const apiNames = {
+          gemini: 'Google Gemini',
+          openai: 'OpenAI'
+        };
+        const usedApiLabel = data.usedApi ? (apiNames[data.usedApi] || data.usedApi) : null;
+        const apiInfoHtml = usedApiLabel
+          ? `<div style="margin-top: 12px; font-size: 12px; color: #555; background: #f7f7f7; display: inline-block; padding: 4px 8px; border-radius: 6px;">使用API: ${usedApiLabel}</div>`
+          : '';
 
         displayDiv.innerHTML = `
           <div style="white-space: pre-wrap; line-height: 1.8;">
             ${predictionText}
+            ${apiInfoHtml}
           </div>
         `;
       } catch (error) {
@@ -3208,6 +3256,10 @@
       const aiMonthEl = document.getElementById('ai-analysis-month');
       if (aiMonthEl) {
         aiMonthEl.value = currentMonth;
+      }
+      const aiYearEl = document.getElementById('ai-analysis-year');
+      if (aiYearEl) {
+        aiYearEl.value = String(currentYear);
       }
 
       // 予約一覧を30秒ごとに自動更新
