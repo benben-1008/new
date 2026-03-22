@@ -203,17 +203,70 @@ function readEvents() {
     return is_array($json) ? $json : [];
 }
 
-// OpenAI APIを呼び出し
-function callOpenAIAPI($messages, $apiConfig, $timeout = 120, $connectTimeout = 15) {
+// OpenAI互換の messages を Gemini 用の単一プロンプトにまとめる
+function flattenMessagesForGeminiPrompt($messages) {
+    $blocks = [];
+    foreach ($messages as $m) {
+        if (!is_array($m)) {
+            continue;
+        }
+        $role = $m['role'] ?? 'user';
+        $content = isset($m['content']) ? (string) $m['content'] : '';
+        if ($content === '') {
+            continue;
+        }
+        if ($role === 'system') {
+            $blocks[] = "[システム指示]\n" . $content;
+        } elseif ($role === 'assistant') {
+            $blocks[] = "[アシスタント]\n" . $content;
+        } else {
+            $blocks[] = "[ユーザー]\n" . $content;
+        }
+    }
+    return implode("\n\n", $blocks);
+}
+
+// 定食アドバイス用: OpenAI を試し、失敗時は Gemini（ai-analysis と同様のフォールバック）
+function callMenuAdviceAI($messages, $config, $timeout = 120, $connectTimeout = 15, $temperature = null) {
+    $openaiCfg = $config['openai'] ?? [];
+    if (($openaiCfg['enabled'] ?? false) && !empty($openaiCfg['api_key'])) {
+        $text = callOpenAIAPI($messages, $openaiCfg, $timeout, $connectTimeout, $temperature);
+        if ($text !== false && trim($text) !== '') {
+            return $text;
+        }
+    }
+    $geminiCfg = $config['gemini'] ?? [];
+    if (($geminiCfg['enabled'] ?? false) && !empty($geminiCfg['api_key'])) {
+        $prompt = flattenMessagesForGeminiPrompt($messages);
+        if ($prompt !== '') {
+            $text = callGeminiAPI($prompt, $geminiCfg, $timeout, $connectTimeout);
+            if ($text !== false && trim($text) !== '') {
+                return $text;
+            }
+        }
+    }
+    return false;
+}
+
+function menuAdviceAIConfigured($config) {
+    $o = $config['openai'] ?? [];
+    $g = $config['gemini'] ?? [];
+    $openaiOk = ($o['enabled'] ?? false) && !empty($o['api_key']);
+    $geminiOk = ($g['enabled'] ?? false) && !empty($g['api_key']);
+    return $openaiOk || $geminiOk;
+}
+
+// OpenAI APIを呼び出し（$temperature を null のままなら 0.7）
+function callOpenAIAPI($messages, $apiConfig, $timeout = 120, $connectTimeout = 15, $temperature = null) {
     $ch = curl_init();
-    $url = $apiConfig['base_url'] . '/chat/completions';
+    $url = ($apiConfig['base_url'] ?? 'https://api.openai.com/v1') . '/chat/completions';
     
     curl_setopt($ch, CURLOPT_URL, $url);
     curl_setopt($ch, CURLOPT_POST, true);
     $requestBody = [
         'model' => $apiConfig['model'] ?? 'gpt-3.5-turbo',
         'messages' => $messages,
-        'temperature' => 0.7,
+        'temperature' => $temperature !== null ? (float) $temperature : 0.7,
         'max_tokens' => 2000,
     ];
     curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($requestBody, JSON_UNESCAPED_UNICODE));
@@ -349,6 +402,15 @@ function readDailyMenu() {
     return is_array($data) ? $data : [];
 }
 
+function getHolidayEntryForDate($date) {
+    foreach (readHolidays() as $h) {
+        if (isset($h['date']) && $h['date'] === $date) {
+            return $h;
+        }
+    }
+    return null;
+}
+
 // 指定日付の定食が既に設定されているか取得
 function getExistingFoodForDate($dailyMenus, $date) {
     foreach ($dailyMenus as $m) {
@@ -413,8 +475,8 @@ function saveCachedMenuAdvice($date, $advice) {
 // 既に設定されている定食メニューについて、作り方・アドバイスを生成
 function generateAdviceForDish($date, $foodName, $dayOfWeek) {
     $config = getAIConfig();
-    if (!($config['openai']['enabled'] ?? false) || empty($config['openai']['api_key'])) {
-        return ['error' => 'OpenAI APIが設定されていません'];
+    if (!menuAdviceAIConfigured($config)) {
+        return ['error' => 'AI APIが設定されていません（OpenAI または Gemini を有効にしてください）'];
     }
     $cached = getCachedMenuAdvice($date);
     if ($cached !== null && isset($cached['isAlreadySet']) && $cached['isAlreadySet'] && ($cached['existingFood'] ?? '') === $foodName) {
@@ -430,9 +492,11 @@ function generateAdviceForDish($date, $foodName, $dayOfWeek) {
         ['role' => 'system', 'content' => $systemPrompt],
         ['role' => 'user', 'content' => $userPrompt]
     ];
-    $response = callOpenAIAPI($messages, $config['openai'], $config['timeout'] ?? 120, $config['connect_timeout'] ?? 15);
+    $timeout = $config['timeout'] ?? 120;
+    $connectTimeout = $config['connect_timeout'] ?? 15;
+    $response = callMenuAdviceAI($messages, $config, $timeout, $connectTimeout, null);
     if ($response === false) {
-        return ['error' => 'AI APIの呼び出しに失敗しました'];
+        return ['error' => 'AI APIの呼び出しに失敗しました（OpenAI・Gemini ともに応答がありませんでした）'];
     }
     $result = [
         'advice' => $response,
@@ -445,15 +509,52 @@ function generateAdviceForDish($date, $foodName, $dayOfWeek) {
     return $result;
 }
 
-// その月の献立の流れを考慮して定食を提案し、作り方・アドバイスを生成
-function generateMenuSuggestionWithAdvice($date, $dayOfWeek, $monthMenus, $attendanceData = []) {
-    $config = getAIConfig();
-    if (!($config['openai']['enabled'] ?? false) || empty($config['openai']['api_key'])) {
-        return ['error' => 'OpenAI APIが設定されていません'];
+// 日付（と別案時の除外）からシードし、献立は守りつつ毎日ちがう方向性のヒントを返す
+function getMenuVarietyHintForDate($date, $dayOfWeek, $excludeFoods = []) {
+    $salt = '';
+    if (is_array($excludeFoods) && count($excludeFoods) > 0) {
+        $salt = '|x' . (string) crc32(implode("\0", $excludeFoods));
     }
-    $cached = getCachedMenuAdvice($date);
-    if ($cached !== null && isset($cached['suggestedFood']) && empty($cached['isAlreadySet'])) {
-        return $cached;
+    $seed = abs((int) crc32($date . '|' . $dayOfWeek . $salt));
+    if ($dayOfWeek === '月') {
+        $options = [
+            '海鮮・魚介を使った丼',
+            '豚肉・鶏肉・牛肉など肉を主役にした丼',
+            '卵とじ・親子・他人丼のような卵系',
+            '野菜・きのこ・豆腐を多めにした丼',
+            'フライ・唐揚げ・カツをのせる丼',
+            '煮込み・角煮・すき焼き風などじっくり味の丼',
+        ];
+    } else {
+        $options = [
+            '焼き魚・煮魚・ムニエルなど魚介を主菜に',
+            '鶏肉（照焼・ソテー・蒸しなど、から揚げ以外も可）',
+            '豚の生姜焼き・角煮・ロース焼き・回鍋肉風など',
+            '牛肉・ハンバーグ・ミンチを使った主菜',
+            '豆腐・厚揚げ・卵・納豆料理を主菜の中心に',
+            '洋食系（チキン南蛮、メンチカツ、クリーム系など）の定食',
+        ];
+    }
+    $n = count($options);
+    $idx = $n > 0 ? ($seed % $n) : 0;
+    $hint = $options[$idx];
+    return "\n\n【バリエーションの指針（このリクエスト専用）】過去の献立データの分析・重複回避は必ず守ったうえで、今回は「{$hint}」という方向を優先して検討してください。"
+        . "いつも同じ定番（例：から揚げ定食・とんかつ定食だけ）に寄せず、日替わりとして幅のあるメニューから1案に絞って提案してください。";
+}
+
+// その月の献立の流れを考慮して定食を提案し、作り方・アドバイスを生成
+// $forceRegenerate: true のときキャッシュを使わず再生成（別メニュー提案用）
+// $excludeFoods: これまでに出した提案メニュー名の配列（今回は提案しない）
+function generateMenuSuggestionWithAdvice($date, $dayOfWeek, $monthMenus, $attendanceData = [], $forceRegenerate = false, $excludeFoods = []) {
+    $config = getAIConfig();
+    if (!menuAdviceAIConfigured($config)) {
+        return ['error' => 'AI APIが設定されていません（OpenAI または Gemini を有効にしてください）'];
+    }
+    if (!$forceRegenerate) {
+        $cached = getCachedMenuAdvice($date);
+        if ($cached !== null && isset($cached['suggestedFood']) && empty($cached['isAlreadySet'])) {
+            return $cached;
+        }
     }
     $dateStr = date('Y年m月d日', strtotime($date));
     $budget = 400;
@@ -484,8 +585,22 @@ function generateMenuSuggestionWithAdvice($date, $dayOfWeek, $monthMenus, $atten
         $attendanceInfo = "\n\n過去の来客数データから、この日は約" . round($avgAttendance) . "人の来客が予測されます。";
     }
     $excludeNote = "\n\n【提案禁止】カレー定食・ラーメン定食・うどん定食は提案しないでください。ラーメン・カレー・うどんは既にメニューに単品としてあるため、定食として重複して提案しないこと。";
+    $excludePrevious = '';
+    if (!empty($excludeFoods) && is_array($excludeFoods)) {
+        $lines = [];
+        foreach (array_unique(array_map('trim', $excludeFoods)) as $ex) {
+            if ($ex !== '') {
+                $lines[] = '- ' . $ex;
+            }
+        }
+        if (!empty($lines)) {
+            $excludePrevious = "\n\n【今回の別案の条件】以下の定食は、すでにこの日の候補として検討済みなので今回は提案しないでください。献立の流れと重複しない、別の定食を1つだけ提案してください。\n" . implode("\n", $lines);
+        }
+    }
+    $varietyHint = getMenuVarietyHintForDate($date, $dayOfWeek, $excludeFoods);
     $systemPrompt = "あなたは学校食堂のメニュー提案と調理の専門家です。予算とメニュー構成に基づき、献立の流れを考慮して1品だけ定食メニューを提案し、その作り方も詳しく説明してください。"
-        . "火・水・木・金曜日は主菜だけでなく副菜も必ず考え、主菜と副菜の両方を具体的に提案すること。カレー定食・ラーメン定食・うどん定食は提案禁止。";
+        . "火・水・木・金曜日は主菜だけでなく副菜も必ず考え、主菜と副菜の両方を具体的に提案すること。カレー定食・ラーメン定食・うどん定食は提案禁止。"
+        . "条件を満たす範囲で、日付が変わるたびに同じ定食名に固まらないよう、メニューに多様性を持たせること。";
     $userPrompt = "日付：{$dateStr}（{$dayOfWeek}曜日）\n\n以下の条件で、この日の定食メニューを1つだけ提案し、作り方・アドバイスを記載してください。\n\n";
     $userPrompt .= "- 一人当たり予算：{$budget}円程度\n";
     $userPrompt .= "- メニュー構成：{$menuStructure}\n";
@@ -494,6 +609,8 @@ function generateMenuSuggestionWithAdvice($date, $dayOfWeek, $monthMenus, $atten
     $userPrompt .= $monthContext;
     $userPrompt .= $attendanceInfo;
     $userPrompt .= $specialNote;
+    $userPrompt .= $excludePrevious;
+    $userPrompt .= $varietyHint;
     $formatNote = ($dayOfWeek !== '月') ? "\n\n※ 火～金曜は主菜と副菜の両方の内容（品名・作り方）を回答に含めてください。主菜だけでなく副菜も具体的に提案すること。" : '';
     $userPrompt .= "\n\n【回答形式】\n\n【おすすめ定食】\n[メニュー名（1品だけ、例：とんかつ定食、から揚げ定食）]\n\n【作り方】\n1. [手順1]\n2. [手順2]\n...\n\n【ポイント・アドバイス】\n- [調理のコツなど]\n\n予算：約[金額]円"
         . $formatNote
@@ -502,9 +619,18 @@ function generateMenuSuggestionWithAdvice($date, $dayOfWeek, $monthMenus, $atten
         ['role' => 'system', 'content' => $systemPrompt],
         ['role' => 'user', 'content' => $userPrompt]
     ];
-    $response = callOpenAIAPI($messages, $config['openai'], $config['timeout'] ?? 120, $config['connect_timeout'] ?? 15);
+    $menuTemp = isset($config['openai']['menu_suggestion_temperature']) ? (float) $config['openai']['menu_suggestion_temperature'] : 0.92;
+    if ($menuTemp < 0.5) {
+        $menuTemp = 0.5;
+    }
+    if ($menuTemp > 1.2) {
+        $menuTemp = 1.2;
+    }
+    $timeout = $config['timeout'] ?? 120;
+    $connectTimeout = $config['connect_timeout'] ?? 15;
+    $response = callMenuAdviceAI($messages, $config, $timeout, $connectTimeout, $menuTemp);
     if ($response === false) {
-        return ['error' => 'AI APIの呼び出しに失敗しました'];
+        return ['error' => 'AI APIの呼び出しに失敗しました（OpenAI・Gemini ともに応答がありませんでした）'];
     }
     $suggestedFood = '';
     if (preg_match('/【おすすめ定食】\s*\n\s*([^\n【]+)/u', $response, $m)) {
@@ -536,8 +662,8 @@ function generateMenuSuggestionWithAdvice($date, $dayOfWeek, $monthMenus, $atten
 function generateMenuAdvice($dayOfWeek, $attendanceData = [], $date = null) {
     $config = getAIConfig();
     
-    if (!($config['openai']['enabled'] ?? false) || empty($config['openai']['api_key'])) {
-        return ['error' => 'OpenAI APIが設定されていません'];
+    if (!menuAdviceAIConfigured($config)) {
+        return ['error' => 'AI APIが設定されていません（OpenAI または Gemini を有効にしてください）'];
     }
     
     // 日付を取得（指定がない場合は今日）
@@ -596,10 +722,12 @@ function generateMenuAdvice($dayOfWeek, $attendanceData = [], $date = null) {
         ['role' => 'user', 'content' => $userPrompt]
     ];
     
-    $response = callOpenAIAPI($messages, $config['openai'], $config['timeout'] ?? 120, $config['connect_timeout'] ?? 15);
+    $timeout = $config['timeout'] ?? 120;
+    $connectTimeout = $config['connect_timeout'] ?? 15;
+    $response = callMenuAdviceAI($messages, $config, $timeout, $connectTimeout, null);
     
     if ($response === false) {
-        return ['error' => 'AI APIの呼び出しに失敗しました'];
+        return ['error' => 'AI APIの呼び出しに失敗しました（OpenAI・Gemini ともに応答がありませんでした）'];
     }
     
     $result = ['advice' => $response, 'dayOfWeek' => $dayOfWeek, 'date' => $date];
@@ -905,20 +1033,51 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     if ($action === 'menu') {
         // 定食アドバイス（日付指定可能。指定がなければ今日）
         $date = isset($_GET['date']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['date']) ? $_GET['date'] : date('Y-m-d');
-        $dayOfWeek = getDayOfWeekForDate($date);
-        $attendanceData = readAttendanceData();
-        $dailyMenus = readDailyMenu();
-        $existingFood = getExistingFoodForDate($dailyMenus, $date);
-        $monthMenus = getMonthlyMenusBeforeDate($dailyMenus, $date);
-        
-        if ($existingFood !== null && $existingFood !== '') {
-            // その日は既に定食が設定済み → そのメニューの作り方・アドバイスを生成
-            $result = generateAdviceForDish($date, $existingFood, $dayOfWeek);
+        $holidayEntry = getHolidayEntryForDate($date);
+        if ($holidayEntry !== null) {
+            $reason = trim((string)($holidayEntry['reason'] ?? ''));
+            if ($reason === '') {
+                $reason = '休業日';
+            }
+            $ts = strtotime($date);
+            $dateLabel = $ts !== false ? date('Y年n月j日', $ts) : $date;
+            $message = $dateLabel . 'は休業日（' . $reason . '）のため、この日の定食アドバイスはご利用いただけません。';
+            echo json_encode([
+                'error' => $message,
+                'message' => $message,
+                'holiday' => true,
+                'reason' => $reason,
+                'date' => $date,
+            ], JSON_UNESCAPED_UNICODE);
         } else {
-            // 未設定 → その月の献立の流れを考慮して提案し、作り方・アドバイスを生成
-            $result = generateMenuSuggestionWithAdvice($date, $dayOfWeek, $monthMenus, $attendanceData);
+            $dayOfWeek = getDayOfWeekForDate($date);
+            $attendanceData = readAttendanceData();
+            $dailyMenus = readDailyMenu();
+            $existingFood = getExistingFoodForDate($dailyMenus, $date);
+            $monthMenus = getMonthlyMenusBeforeDate($dailyMenus, $date);
+
+            if ($existingFood !== null && $existingFood !== '') {
+                // その日は既に定食が設定済み → そのメニューの作り方・アドバイスを生成
+                $result = generateAdviceForDish($date, $existingFood, $dayOfWeek);
+            } else {
+                // 未設定 → その月の献立の流れを考慮して提案し、作り方・アドバイスを生成
+                // alternate=1 で別案（キャッシュ無視）。exclude に JSON 配列で除外メニュー名を渡す
+                $forceAlternate = isset($_GET['alternate']) && ($_GET['alternate'] === '1' || $_GET['alternate'] === 'true');
+                $excludeFoods = [];
+                if (!empty($_GET['exclude']) && is_string($_GET['exclude'])) {
+                    $decoded = json_decode($_GET['exclude'], true);
+                    if (is_array($decoded)) {
+                        foreach ($decoded as $x) {
+                            if (is_string($x) && trim($x) !== '') {
+                                $excludeFoods[] = trim($x);
+                            }
+                        }
+                    }
+                }
+                $result = generateMenuSuggestionWithAdvice($date, $dayOfWeek, $monthMenus, $attendanceData, $forceAlternate, $excludeFoods);
+            }
+            echo json_encode($result, JSON_UNESCAPED_UNICODE);
         }
-        echo json_encode($result, JSON_UNESCAPED_UNICODE);
     } elseif ($action === 'attendance') {
         // 来客数予測
         $attendanceData = readAttendanceData();
