@@ -596,6 +596,7 @@
                   <input type="date" id="advice-date" style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px;">
                 </div>
                 <button onclick="getMenuAdvice()" class="btn btn-primary">選択した日付の定食アドバイスを表示</button>
+                <button type="button" id="btn-menu-advice-alternate" onclick="getAlternateMenuAdvice()" class="btn" style="margin-left:8px; background:#6c757d; color:#fff; border:none; display:none;">🔄 ほかのメニューを提案</button>
                 <div id="menu-advice-display"
                   style="margin-top: 20px; padding: 15px; background-color: #f8f9fa; border-radius: 8px; border: 1px solid #e9ecef; min-height: 100px;">
                   <p style="color: #6c757d;">日付を選択して「選択した日付の定食アドバイスを表示」をクリックしてください</p>
@@ -2886,8 +2887,12 @@
     let currentMenuAdviceExistingFood = '';
     let currentMenuAdviceIsAlreadySet = false;
     let menuChatHistory = [];
+    /** 別案取得時に除外する、これまでに提案された定食名 */
+    let menuAdviceAlternateExclude = [];
 
-    async function getMenuAdvice() {
+    async function getMenuAdvice(options) {
+      const opts = options && typeof options === 'object' ? options : {};
+      const alternate = opts.alternate === true;
       const dateInput = document.getElementById('advice-date');
       const selectedDate = dateInput && dateInput.value ? dateInput.value : new Date().toISOString().slice(0, 10);
       if (!dateInput.value) {
@@ -2898,20 +2903,41 @@
       const chatDiv = document.getElementById('menu-advice-chat');
       const setButtonDiv = document.getElementById('menu-advice-set-button');
       const setStatusSpan = document.getElementById('menu-advice-set-status');
+      const altBtn = document.getElementById('btn-menu-advice-alternate');
+      if (!alternate) {
+        menuAdviceAlternateExclude = [];
+      }
       displayDiv.innerHTML = '<p style="color: #666;">🤖 AIがアドバイスを取得しています...</p>';
       if (setButtonDiv) setButtonDiv.style.display = 'none';
       if (setStatusSpan) setStatusSpan.textContent = '';
+      if (altBtn) altBtn.style.display = 'none';
 
       try {
         const apiBase = (typeof getApiBaseCandidates === 'function' && getApiBaseCandidates().length) ? getApiBaseCandidates()[0] : 'api/';
-        const response = await fetch(`${apiBase}ai-advice.php?action=menu&date=${encodeURIComponent(selectedDate)}`);
+        let url = `${apiBase}ai-advice.php?action=menu&date=${encodeURIComponent(selectedDate)}`;
+        if (alternate) {
+          url += '&alternate=1';
+          if (menuAdviceAlternateExclude.length) {
+            url += '&exclude=' + encodeURIComponent(JSON.stringify(menuAdviceAlternateExclude));
+          }
+        }
+        const response = await fetch(url);
         if (!response.ok) {
           throw new Error('API呼び出しに失敗しました');
         }
         const data = await response.json();
 
+        if (data.holiday) {
+          const msg = data.message || data.error || 'この日は休業日のため、定食アドバイスはご利用いただけません。';
+          displayDiv.innerHTML = `<p style="margin:0; padding:12px 14px; background:#fff3cd; border:1px solid #ffc107; border-radius:8px; color:#856404;">🚫 ${msg}</p>`;
+          if (altBtn) altBtn.style.display = 'none';
+          chatDiv.style.display = 'none';
+          return;
+        }
+
         if (data.error) {
           displayDiv.innerHTML = `<p style="color: #dc3545;">❌ エラー: ${data.error}</p>`;
+          if (altBtn) altBtn.style.display = 'none';
           return;
         }
 
@@ -2950,13 +2976,32 @@
             setButtonDiv.style.display = 'none';
           }
         }
+        if (altBtn) {
+          altBtn.style.display = (!currentMenuAdviceIsAlreadySet && currentMenuAdviceSuggestedFood) ? 'inline-block' : 'none';
+        }
 
         chatDiv.style.display = 'block';
         document.getElementById('menu-chat-messages').innerHTML = '';
       } catch (error) {
         console.error('メニュー提案エラー:', error);
         displayDiv.innerHTML = `<p style="color: #dc3545;">❌ エラー: ${error.message}</p>`;
+        const altBtnErr = document.getElementById('btn-menu-advice-alternate');
+        if (altBtnErr) altBtnErr.style.display = 'none';
       }
+    }
+
+    async function getAlternateMenuAdvice() {
+      if (!currentMenuAdvice && !currentMenuAdviceSuggestedFood) {
+        alert('先に「選択した日付の定食アドバイスを表示」を実行してください。');
+        return;
+      }
+      if (currentMenuAdviceSuggestedFood) {
+        const name = String(currentMenuAdviceSuggestedFood).trim();
+        if (name && !menuAdviceAlternateExclude.includes(name)) {
+          menuAdviceAlternateExclude.push(name);
+        }
+      }
+      await getMenuAdvice({ alternate: true });
     }
 
     async function setSuggestedMenuToDaily() {
