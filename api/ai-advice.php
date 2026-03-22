@@ -72,8 +72,8 @@ function callGeminiAPI($prompt, $apiConfig, $timeout = 120, $connectTimeout = 15
     return false;
 }
 
-// 来客予測向け: Gemini API詳細呼び出し（成功/失敗理由を返す）
-function callGeminiAPIWithStatus($prompt, $apiConfig, $timeout = 120, $connectTimeout = 15) {
+// 来客・メニュー予測向け: Gemini API詳細呼び出し（成功/失敗理由を返す）
+function callGeminiAPIWithStatus($prompt, $apiConfig, $timeout = 120, $connectTimeout = 15, $maxOutputTokens = 4096) {
     $ch = curl_init();
     $model = $apiConfig['model'] ?? 'gemini-1.5-flash';
     $baseUrl = $apiConfig['base_url'] ?? 'https://generativelanguage.googleapis.com/v1beta';
@@ -82,7 +82,10 @@ function callGeminiAPIWithStatus($prompt, $apiConfig, $timeout = 120, $connectTi
     curl_setopt($ch, CURLOPT_URL, $url);
     curl_setopt($ch, CURLOPT_POST, true);
     $requestBody = [
-        'contents' => [['parts' => [['text' => $prompt]]]]
+        'contents' => [['parts' => [['text' => $prompt]]]],
+        'generationConfig' => [
+            'maxOutputTokens' => max(512, min(8192, (int) $maxOutputTokens)),
+        ],
     ];
     curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($requestBody, JSON_UNESCAPED_UNICODE));
     curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
@@ -112,27 +115,32 @@ function callGeminiAPIWithStatus($prompt, $apiConfig, $timeout = 120, $connectTi
     return ['ok' => false, 'text' => null, 'reason' => 'http_error', 'httpCode' => $httpCode];
 }
 
-// 来客予測レスポンスから予測人数を抽出
+// 来客予測レスポンスから予測人数を抽出（メニュー別セクションの「○人前」等と混同しないよう先頭側のみ対象）
 function extractAttendancePredictionNumber($text) {
     if (!is_string($text) || trim($text) === '') {
         return null;
     }
 
-    if (preg_match('/予測来客数[:：]?\s*約?\s*(\d+)\s*人/u', $text, $m)) {
+    $head = $text;
+    if (preg_match('/【メニュー別/u', $text, $m, PREG_OFFSET_CAPTURE)) {
+        $head = substr($text, 0, $m[0][1]);
+    }
+
+    if (preg_match('/予測来客数[:：]?\s*約?\s*(\d+)\s*人/u', $head, $m)) {
         return intval($m[1]);
     }
-    if (preg_match('/来客数予測[^\n]*約?\s*(\d+)\s*人/u', $text, $m)) {
+    if (preg_match('/来客数予測[^\n]*約?\s*(\d+)\s*人/u', $head, $m)) {
         return intval($m[1]);
     }
-    if (preg_match('/約?\s*(\d+)\s*人/u', $text, $m)) {
+    if (preg_match('/約?\s*(\d+)\s*人/u', $head, $m)) {
         return intval($m[1]);
     }
 
     return null;
 }
 
-// 来客予測用: Gemini/OpenAIの両方を呼び出して結果を返す
-function callAIForAttendancePrediction($messages, $config) {
+// 来客・メニュー予測用: Gemini/OpenAIの両方を呼び出して結果を返す
+function callAIForAttendancePrediction($messages, $config, $maxTokens = 3500) {
     $timeout = $config['timeout'] ?? 120;
     $connectTimeout = $config['connect_timeout'] ?? 15;
     $responses = [];
@@ -150,7 +158,7 @@ function callAIForAttendancePrediction($messages, $config) {
                 $flatPrompt .= "[ユーザー]\n{$content}\n\n";
             }
         }
-        $geminiResult = callGeminiAPIWithStatus($flatPrompt, $config['gemini'], $timeout, $connectTimeout);
+        $geminiResult = callGeminiAPIWithStatus($flatPrompt, $config['gemini'], $timeout, $connectTimeout, $maxTokens);
         $statuses['gemini'] = [
             'attempted' => true,
             'ok' => $geminiResult['ok'],
@@ -166,7 +174,7 @@ function callAIForAttendancePrediction($messages, $config) {
 
     // 2) OpenAI
     if (($config['openai']['enabled'] ?? false) && !empty($config['openai']['api_key'])) {
-        $openaiResult = callOpenAIAPIWithStatus($messages, $config['openai'], $timeout, $connectTimeout);
+        $openaiResult = callOpenAIAPIWithStatus($messages, $config['openai'], $timeout, $connectTimeout, $maxTokens);
         $statuses['openai'] = [
             'attempted' => true,
             'ok' => $openaiResult['ok'],
@@ -300,8 +308,8 @@ function callOpenAIAPI($messages, $apiConfig, $timeout = 120, $connectTimeout = 
     return false;
 }
 
-// 来客予測向け: OpenAI API詳細呼び出し（成功/失敗理由を返す）
-function callOpenAIAPIWithStatus($messages, $apiConfig, $timeout = 120, $connectTimeout = 15) {
+// 来客・メニュー予測向け: OpenAI API詳細呼び出し（成功/失敗理由を返す）
+function callOpenAIAPIWithStatus($messages, $apiConfig, $timeout = 120, $connectTimeout = 15, $maxTokens = 2000) {
     $ch = curl_init();
     $url = ($apiConfig['base_url'] ?? 'https://api.openai.com/v1') . '/chat/completions';
     
@@ -311,7 +319,7 @@ function callOpenAIAPIWithStatus($messages, $apiConfig, $timeout = 120, $connect
         'model' => $apiConfig['model'] ?? 'gpt-3.5-turbo',
         'messages' => $messages,
         'temperature' => 0.7,
-        'max_tokens' => 2000,
+        'max_tokens' => max(256, min(8000, (int) $maxTokens)),
     ];
     curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($requestBody, JSON_UNESCAPED_UNICODE));
     curl_setopt($ch, CURLOPT_HTTPHEADER, [
@@ -370,6 +378,482 @@ function readAttendanceDataWithDays() {
         }
     }
     return [];
+}
+
+// メニュー名の統一（表記ゆれ対策）— エクセル上の「日替丼」は「日替定食」と同一扱い
+function normalizeMenuNameForAnalytics($name) {
+    $name = trim((string) $name);
+    if ($name === '日替丼') {
+        return '日替定食';
+    }
+    return $name;
+}
+
+/**
+ * メニュー別数量マップのキーを正規化し、同一キーは加算
+ * @param array<string,mixed> $ms
+ * @return array<string,int>
+ */
+function normalizeMenuSalesMap(array $ms) {
+    $out = [];
+    foreach ($ms as $k => $v) {
+        $nk = normalizeMenuNameForAnalytics($k);
+        $out[$nk] = ($out[$nk] ?? 0) + (int) $v;
+    }
+    return $out;
+}
+
+function statisticalMedianFromInts(array $nums) {
+    $nums = array_values(array_map('intval', $nums));
+    sort($nums);
+    $c = count($nums);
+    if ($c === 0) {
+        return 0.0;
+    }
+    $mid = intdiv($c, 2);
+    if ($c % 2 === 1) {
+        return (float) $nums[$mid];
+    }
+    return ((float) $nums[$mid - 1] + (float) $nums[$mid]) / 2.0;
+}
+
+// 予約・売上データ（メニュー別集計用）
+function readSalesDataJson() {
+    global $dataDir;
+    $file = $dataDir . '/sales-data.json';
+    if (!file_exists($file)) {
+        return [];
+    }
+    $content = @file_get_contents($file);
+    if ($content === false || $content === '') {
+        return [];
+    }
+    $decoded = json_decode($content, true);
+    return is_array($decoded) ? $decoded : [];
+}
+
+// アップロードされた月次表から取り込んだ日別レコード [{date, day, attendance, menuSales}, ...]
+function readAttendanceDailyRecords() {
+    global $dataDir;
+    $jsonPath = $dataDir . '/attendance-data.json';
+    if (!file_exists($jsonPath)) {
+        return [];
+    }
+    $content = @file_get_contents($jsonPath);
+    if ($content === false || $content === '') {
+        return [];
+    }
+    $data = json_decode($content, true);
+    if (!is_array($data)) {
+        return [];
+    }
+    $dr = $data['dailyRecords'] ?? [];
+    return is_array($dr) ? $dr : [];
+}
+
+/**
+ * 日別の menuSales を直近120日・同一曜日で集計
+ * @return array{0: array<string,int>, 1: array<string,int>, 2: int} totalAll, totalSameDow, grand
+ */
+function aggregateMenuSalesFromDailyMenuRows(array $rows, $targetDate, $targetDayOfWeek) {
+    $targetTs = strtotime($targetDate);
+    if ($targetTs === false) {
+        $targetTs = time();
+    }
+    $cutoffTs = strtotime('-120 days', $targetTs);
+    $totalAll = [];
+    $totalSameDow = [];
+
+    foreach ($rows as $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+        $d = $row['date'] ?? '';
+        if (!is_string($d) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $d)) {
+            continue;
+        }
+        $dayTs = strtotime($d);
+        if ($dayTs === false || $dayTs < $cutoffTs) {
+            continue;
+        }
+        $ms = normalizeMenuSalesMap($row['menuSales'] ?? []);
+        if ($ms === []) {
+            continue;
+        }
+        $dow = isset($row['day']) && is_string($row['day']) && $row['day'] !== ''
+            ? $row['day']
+            : getDayOfWeekForDate($d);
+        foreach ($ms as $menu => $qty) {
+            $q = (int) $qty;
+            if ($q <= 0) {
+                continue;
+            }
+            if (!isset($totalAll[$menu])) {
+                $totalAll[$menu] = 0;
+            }
+            $totalAll[$menu] += $q;
+            if ($dow === $targetDayOfWeek) {
+                if (!isset($totalSameDow[$menu])) {
+                    $totalSameDow[$menu] = 0;
+                }
+                $totalSameDow[$menu] += $q;
+            }
+        }
+    }
+
+    return [$totalAll, $totalSameDow, array_sum($totalAll)];
+}
+
+/**
+ * sales-data.json（日付キー）からメニュー別集計
+ * @return array{0: array<string,int>, 1: array<string,int>, 2: int}
+ */
+function aggregateMenuSalesFromSalesDataFile($targetDate, $targetDayOfWeek) {
+    $salesData = readSalesDataJson();
+    $targetTs = strtotime($targetDate);
+    if ($targetTs === false) {
+        $targetTs = time();
+    }
+    $cutoffTs = strtotime('-120 days', $targetTs);
+    $totalAll = [];
+    $totalSameDow = [];
+
+    foreach ($salesData as $d => $dayData) {
+        if (!is_string($d) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $d)) {
+            continue;
+        }
+        $dayTs = strtotime($d);
+        if ($dayTs === false || $dayTs < $cutoffTs) {
+            continue;
+        }
+        if (!is_array($dayData)) {
+            continue;
+        }
+        $ms = normalizeMenuSalesMap($dayData['menuSales'] ?? []);
+        if ($ms === []) {
+            continue;
+        }
+        foreach ($ms as $menu => $qty) {
+            $q = (int) $qty;
+            if ($q <= 0) {
+                continue;
+            }
+            if (!isset($totalAll[$menu])) {
+                $totalAll[$menu] = 0;
+            }
+            $totalAll[$menu] += $q;
+            if (getDayOfWeekForDate($d) === $targetDayOfWeek) {
+                if (!isset($totalSameDow[$menu])) {
+                    $totalSameDow[$menu] = 0;
+                }
+                $totalSameDow[$menu] += $q;
+            }
+        }
+    }
+
+    return [$totalAll, $totalSameDow, array_sum($totalAll)];
+}
+
+/**
+ * メニュー統計用：直近120日の日別行（menuSales は正規化済み）を日付順で返す
+ * アップロード表にメニュー実績があれば優先、なければ sales-data
+ * @return array<int, array{date:string,day:string,menuSales:array<string,int>}>
+ */
+function collectNormalizedDailyRowsForMenuStats($targetDate) {
+    $targetTs = strtotime($targetDate);
+    if ($targetTs === false) {
+        $targetTs = time();
+    }
+    $cutoffTs = strtotime('-120 days', $targetTs);
+
+    $dailyRecords = readAttendanceDailyRecords();
+    $fromExcel = [];
+    foreach ($dailyRecords as $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+        $d = $row['date'] ?? '';
+        if (!is_string($d) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $d)) {
+            continue;
+        }
+        $dayTs = strtotime($d);
+        if ($dayTs === false || $dayTs < $cutoffTs) {
+            continue;
+        }
+        $dow = isset($row['day']) && is_string($row['day']) && $row['day'] !== ''
+            ? $row['day']
+            : getDayOfWeekForDate($d);
+        $fromExcel[] = [
+            'date' => $d,
+            'day' => $dow,
+            'menuSales' => normalizeMenuSalesMap($row['menuSales'] ?? []),
+        ];
+    }
+
+    $hasMenu = false;
+    foreach ($fromExcel as $r) {
+        foreach ($r['menuSales'] as $q) {
+            if ((int) $q > 0) {
+                $hasMenu = true;
+                break 2;
+            }
+        }
+    }
+    if ($hasMenu) {
+        usort($fromExcel, function ($a, $b) {
+            return strcmp($a['date'], $b['date']);
+        });
+        return $fromExcel;
+    }
+
+    $fromSales = [];
+    foreach (readSalesDataJson() as $d => $dayData) {
+        if (!is_string($d) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $d)) {
+            continue;
+        }
+        $dayTs = strtotime($d);
+        if ($dayTs === false || $dayTs < $cutoffTs) {
+            continue;
+        }
+        if (!is_array($dayData)) {
+            continue;
+        }
+        $fromSales[] = [
+            'date' => $d,
+            'day' => getDayOfWeekForDate($d),
+            'menuSales' => normalizeMenuSalesMap($dayData['menuSales'] ?? []),
+        ];
+    }
+    usort($fromSales, function ($a, $b) {
+        return strcmp($a['date'], $b['date']);
+    });
+    return $fromSales;
+}
+
+/**
+ * 各メニューについて平均・中央値・最大最小・曜日別平均・予測曜日との比較（来客数分析と同様の観点）
+ */
+function buildPerMenuStatisticalAnalysisText(array $sortedRows, $targetDayOfWeek, $menuLimit = 16) {
+    if ($sortedRows === []) {
+        return '';
+    }
+    $menusByTotal = [];
+    foreach ($sortedRows as $r) {
+        foreach ($r['menuSales'] as $m => $q) {
+            if ((int) $q <= 0) {
+                continue;
+            }
+            $menusByTotal[$m] = ($menusByTotal[$m] ?? 0) + (int) $q;
+        }
+    }
+    if ($menusByTotal === []) {
+        return '';
+    }
+    arsort($menusByTotal);
+    $topMenus = array_slice(array_keys($menusByTotal), 0, max(1, (int) $menuLimit));
+
+    $daysOrder = ['月', '火', '水', '木', '金', '土', '日'];
+    $blocks = [];
+
+    foreach ($topMenus as $menu) {
+        $series = [];
+        $byDow = ['月' => [], '火' => [], '水' => [], '木' => [], '金' => [], '土' => [], '日' => []];
+        foreach ($sortedRows as $r) {
+            $q = (int) ($r['menuSales'][$menu] ?? 0);
+            $series[] = $q;
+            $dow = $r['day'] ?? '';
+            if ($dow !== '' && isset($byDow[$dow])) {
+                $byDow[$dow][] = $q;
+            }
+        }
+        $n = count($series);
+        $sum = array_sum($series);
+        $avg = $n > 0 ? round($sum / $n, 2) : 0.0;
+        $med = statisticalMedianFromInts($series);
+        $max = $n > 0 ? max($series) : 0;
+        $min = $n > 0 ? min($series) : 0;
+        $nonzeroDays = count(array_filter($series, function ($x) {
+            return (int) $x > 0;
+        }));
+
+        $dowParts = [];
+        foreach ($daysOrder as $d) {
+            $bucket = $byDow[$d];
+            if ($bucket === []) {
+                continue;
+            }
+            $dAvg = round(array_sum($bucket) / count($bucket), 2);
+            $dowParts[] = "{$d}曜:平均{$dAvg}個";
+        }
+        $dowLine = $dowParts !== [] ? implode('、', $dowParts) : '（曜日別に十分なデータなし）';
+
+        $targetBucket = $byDow[$targetDayOfWeek] ?? [];
+        $targetAvg = $targetBucket !== [] ? round(array_sum($targetBucket) / count($targetBucket), 2) : null;
+        $bias = '';
+        if ($targetAvg !== null && $avg > 0) {
+            if ($targetAvg > $avg * 1.15) {
+                $bias = "→ {$targetDayOfWeek}曜は期間平均より高めの傾向";
+            } elseif ($targetAvg < $avg * 0.85) {
+                $bias = "→ {$targetDayOfWeek}曜は期間平均より低めの傾向";
+            } else {
+                $bias = "→ {$targetDayOfWeek}曜は期間平均に近い";
+            }
+        } elseif ($targetAvg !== null) {
+            $bias = "→ {$targetDayOfWeek}曜の過去平均: {$targetAvg}個/日";
+        }
+
+        $blocks[] = "■ {$menu}\n"
+            . "- データに含まれる日数: {$n}日 / 販売が1個以上あった日: {$nonzeroDays}日 / 期間中の累計販売個数: {$sum}\n"
+            . "- 1日あたり平均: {$avg}個 / 中央値: {$med}個 / 最大（1日）: {$max}個 / 最小（1日）: {$min}個\n"
+            . "- 曜日別の1日あたり平均（偏りの参考）: {$dowLine}\n"
+            . ($targetAvg !== null ? "- 予測対象{$targetDayOfWeek}曜の過去平均（同一曜日のみ）: {$targetAvg}個/日 {$bias}\n" : '');
+    }
+
+    return "【メニュー別の統計分析（来客数と同様：平均・中央値・最大最小・曜日ごとの偏り）】\n"
+        . "※ 表記「日替丼」は「日替定食」にまとめて集計しています。\n"
+        . implode("\n", $blocks) . "\n\n";
+}
+
+/**
+ * アップロード表の同一曜日・予測日より前の最近数日をサンプルとして列挙（AIが日別パターンを把握しやすくする）
+ */
+function buildExcelSameWeekdaySamplesText(array $dailyRecords, $targetDate, $targetDayOfWeek, $limit = 6) {
+    $targetTs = strtotime($targetDate);
+    if ($targetTs === false) {
+        return '';
+    }
+    $candidates = [];
+    foreach ($dailyRecords as $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+        $d = $row['date'] ?? '';
+        if (!is_string($d) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $d)) {
+            continue;
+        }
+        $ts = strtotime($d);
+        if ($ts === false || $ts >= $targetTs) {
+            continue;
+        }
+        $ms = normalizeMenuSalesMap($row['menuSales'] ?? []);
+        if ($ms === []) {
+            continue;
+        }
+        $hasAny = false;
+        foreach ($ms as $q) {
+            if ((int) $q > 0) {
+                $hasAny = true;
+                break;
+            }
+        }
+        if (!$hasAny) {
+            continue;
+        }
+        $dow = isset($row['day']) && is_string($row['day']) && $row['day'] !== ''
+            ? $row['day']
+            : getDayOfWeekForDate($d);
+        if ($dow !== $targetDayOfWeek) {
+            continue;
+        }
+        $candidates[] = $row;
+    }
+    if (empty($candidates)) {
+        return '';
+    }
+    usort($candidates, function ($a, $b) {
+        return strcmp($b['date'] ?? '', $a['date'] ?? '');
+    });
+    $candidates = array_slice($candidates, 0, $limit);
+    $lines = [];
+    foreach ($candidates as $row) {
+        $d = $row['date'] ?? '';
+        $att = isset($row['attendance']) ? (int) $row['attendance'] : null;
+        $ms = normalizeMenuSalesMap($row['menuSales'] ?? []);
+        arsort($ms);
+        $top = [];
+        $n = 0;
+        foreach ($ms as $name => $q) {
+            $top[] = $name . ':' . (int) $q;
+            if (++$n >= 8) {
+                break;
+            }
+        }
+        $attStr = $att !== null ? "{$att}人" : '（来客数不明）';
+        $lines[] = "- {$d} 来客{$attStr} / " . implode(', ', $top);
+    }
+    return "【アップロード表：同一曜日（{$targetDayOfWeek}曜日）の日別サンプル（予測日より前・各日の売れ筋上位）】\n"
+        . implode("\n", $lines) . "\n\n";
+}
+
+/**
+ * メニュー別販売数を集計し、来客・メニュー予測用プロンプト文を組み立てる
+ * アップロード月次表（dailyRecords）のメニュー実績を最優先、なければ sales-data.json
+ */
+function buildMenuSalesContextForPrediction($targetDate, $targetDayOfWeek) {
+    $formatTop = function (array $arr, $limit = 14) {
+        if (empty($arr)) {
+            return "- （該当データなし）\n";
+        }
+        arsort($arr);
+        $out = '';
+        $n = 0;
+        foreach ($arr as $m => $q) {
+            $out .= "- {$m}: 累計 {$q}\n";
+            if (++$n >= $limit) {
+                break;
+            }
+        }
+        return $out;
+    };
+
+    $dailyRecords = readAttendanceDailyRecords();
+    list($totalAll, $totalSameDow, $grand) = aggregateMenuSalesFromDailyMenuRows($dailyRecords, $targetDate, $targetDayOfWeek);
+    $sourceNote = '';
+    $samplesText = '';
+
+    if ($grand > 0) {
+        $sourceNote = "※ 以下のメニュー別集計は、管理画面からアップロードされた**月次販売表（エクセル/CSV）**から日別に取り込んだ実績です（直近約120日）。予測ではこれを最優先で参照してください。\n";
+        $samplesText = buildExcelSameWeekdaySamplesText($dailyRecords, $targetDate, $targetDayOfWeek, 6);
+    } else {
+        list($totalAll, $totalSameDow, $grand) = aggregateMenuSalesFromSalesDataFile($targetDate, $targetDayOfWeek);
+        if ($grand > 0) {
+            $sourceNote = "※ 以下は予約システムの sales-data.json に基づく集計です（アップロード表にメニュー内訳がない場合）。\n";
+        }
+    }
+
+    if ($grand <= 0 && empty($dailyRecords)) {
+        return "【メニュー別販売実績（過去データ）】\n"
+            . "- 月次表のアップロード（メニュー行を含む）または売上・予約データがありません。メニュー別の見込み人数は来客数と整合して割り振り、人数の合計は予測来客数と必ず一致させてください。\n\n";
+    }
+
+    if ($grand <= 0 && !empty($dailyRecords)) {
+        $ctx = "【メニュー別販売実績（アップロード表）】\n"
+            . "- 日別レコードはありますが、メニュー別個数がまだ取り込めていません。表に「各メニュー」行と「メニュー合計」行がある .xlsx / .csv をアップロードしてください。\n\n";
+    } else {
+        $ctx = "【メニュー別販売実績（過去データ・直近約120日以内）】\n" . $sourceNote;
+        $ctx .= "- 全メニュー合計（販売個数の合計）: 約 {$grand}\n\n";
+        $ctx .= $samplesText;
+        $ctx .= "■ 累計ランキング（メニュー別）\n" . $formatTop($totalAll);
+        $ctx .= "\n■ 同じ曜日（{$targetDayOfWeek}曜日）に該当する日のメニュー別累計\n" . $formatTop($totalSameDow);
+        $ctx .= "\n";
+        $statsRows = collectNormalizedDailyRowsForMenuStats($targetDate);
+        $statsBlock = buildPerMenuStatisticalAnalysisText($statsRows, $targetDayOfWeek, 16);
+        if ($statsBlock !== '') {
+            $ctx .= $statsBlock;
+        }
+    }
+
+    $dailyMenus = readDailyMenu();
+    $setMeal = getExistingFoodForDate($dailyMenus, $targetDate);
+    if ($setMeal !== null && $setMeal !== '') {
+        $ctx .= "【予測対象日の定食（献立設定）】\n- {$setMeal}\n"
+            . "- 定食の見込み人数の目安：来客数が35人以上の営業日では、おおよそ20〜30人が定食を選ぶ想定とすること（来客が少ない日はこの上限を超えない）。\n"
+            . "- メニュー別の見込み人数の合計は、必ず予測来客数と一致させること。\n\n";
+    } else {
+        $ctx .= "【予測対象日の定食（献立設定）】\n- 未設定（定食の見込み人数は0。単品メニューのみで合計が予測来客数になること）\n\n";
+    }
+
+    return $ctx;
 }
 
 // 今日の曜日を取得（引数で日付指定可能）
@@ -765,7 +1249,7 @@ function calculateDayOfWeekStats($attendanceDataWithDays) {
     return $stats;
 }
 
-// 来客数予測を生成（改善版：曜日別分析を含む）
+// 来客数予測＋メニュー別売上（販売数）予測を生成（曜日別分析・売上実績を含む）
 // $targetDate: Y-m-d（null または不正なら当日）
 function predictAttendance($attendanceData = [], $attendanceDataWithDays = [], $targetDate = null) {
     $config = getAIConfig();
@@ -835,8 +1319,15 @@ function predictAttendance($attendanceData = [], $attendanceDataWithDays = [], $
         $recentAvg = round(array_sum($recentData) / count($recentData));
     }
     
-    $systemPrompt = "あなたは学校食堂の来客数予測の専門家です。過去データを多角的に分析し、指定された予測対象日の来客数を予測してください。"
-        . "曜日傾向・最近の傾向・統計に加えて、祝日/休業日と校内の行事・お知らせの影響を必ず考慮してください。";
+    $menuSalesBlock = buildMenuSalesContextForPrediction($targetDate, $targetDayOfWeek);
+
+    $systemPrompt = "あなたは学校食堂の運営分析の専門家です。指定された予測対象日について、(1)来客数の予測、(2)メニュー別の販売数量の見込み（売上予測）を一貫した根拠で示してください。"
+        . "来客数は過去の来客データ・曜日傾向・祝日/休業・行事の影響を必ず考慮すること。"
+        . "メニュー別は、提示された販売実績に加え、【メニュー別の統計分析】にある各メニューの1日平均・中央値・最大最小・曜日別平均・予測対象曜日との比較（来客数分析と同様の観点）を必ず踏まえ、各メニューの「見込み人数（予約・選択）」を整数で示すこと。"
+        . "【必須】1人がその日に主として1食を選ぶ前提とし、メニュー別に示す人数の合計は、必ず「予測来客数」と同じ人数になるように配分すること（端数や漏れは「その他」行で調整し、合計一致を明記すること）。"
+        . "定食が献立に設定されている日で、かつ予測来客数が35人以上程度ある場合は、定食の見込み人数はおおよそ20〜30人を目安にすること（来客数が少ない日は定食人数を来客数以下に抑え、20〜30に固執しない）。"
+        . "定食が未設定の日は定食向け人数は0とし、単品メニューのみで合計が予測来客数になること。"
+        . "実績データが乏しいメニューは推定であることを明記し、無理に数値を捏造しないこと。";
     
     $userPrompt = "【過去の来客数データ - 全体統計】\n";
     $userPrompt .= "- 平均：約" . round($avgAttendance) . "人\n";
@@ -874,7 +1365,9 @@ function predictAttendance($attendanceData = [], $attendanceDataWithDays = [], $
     $userPrompt .= "4. 季節や時期による変動\n";
     $userPrompt .= "5. データの信頼性（データ数が多いほど信頼性が高い）\n\n";
     $userPrompt .= "6. 祝日・休業日の影響\n";
-    $userPrompt .= "7. 行事・お知らせ（学校イベント等）の影響\n\n";
+    $userPrompt .= "7. 行事・お知らせ（学校イベント等）の影響\n";
+    $userPrompt .= "8. メニュー別販売実績と定食設定に基づく需要構成\n\n";
+    $userPrompt .= $menuSalesBlock;
     $userPrompt .= "予測対象日は {$dateLabel}（{$targetDayOfWeek}曜日）です。\n\n";
     if ($todayHoliday) {
         $reason = (string)($todayHoliday['reason'] ?? '休業日');
@@ -894,20 +1387,28 @@ function predictAttendance($attendanceData = [], $attendanceDataWithDays = [], $
     } else {
         $userPrompt .= "【予測対象日の行事・お知らせ】\n- 特記事項なし\n\n";
     }
-    $userPrompt .= "これらのデータを基に、多角的な分析を行い、{$dateLabel}の来客数を予測してください。\n\n";
-    $userPrompt .= "以下の形式で回答してください：\n\n【来客数予測】\n\n予測来客数：約[人数]人\n\n【分析根拠】\n";
-    $userPrompt .= "1. 曜日別分析：[同じ曜日の傾向]\n";
+    $userPrompt .= "これらのデータを基に、多角的な分析を行い、{$dateLabel}の来客数とメニュー別の販売見込みを予測してください。\n\n";
+    $userPrompt .= "【厳守】まず予測来客数を1つの整数（N人）として決め、その後メニュー別の「見込み人数」を整数で割り振り、全メニュー（定食・各単品・その他）の人数の合計が必ずN人と一致するようにすること。最後に「メニュー別内訳の合計：N人（＝予測来客数）」と1行で明示すること。\n\n";
+    $userPrompt .= "以下の形式で回答してください（見出し名はそのまま使用すること）：\n\n";
+    $userPrompt .= "【来客数予測】\n\n予測来客数：約[N]人（Nは整数。ここで確定したNをメニュー別の合計と一致させる）\n\n";
+    $userPrompt .= "【メニュー別売上予測（販売数量の見込み）】\n";
+    $userPrompt .= "※ 各メニューは「見込み人数：○○人」と整数で記載（1人1食のカウント）。主要メニューは実績ランキングを優先し、漏れを拾うため必要なら「その他：○○人」を設ける。\n";
+    $userPrompt .= "※ 想定シェア（％）も併記してよいが、シェアは上記人数から計算し、人数合計がNと一致すること。\n";
+    $userPrompt .= "※ 定食が献立に設定されている日で予測来客数が35人以上のとき、定食の見込み人数は目安としておおよそ20〜30人を採用すること。単品のみの日は定食0人とし、単品の合計がN人になること。\n\n";
+    $userPrompt .= "【分析根拠】\n";
+    $userPrompt .= "1. 曜日別分析：[同じ曜日の来客・メニュー傾向]\n";
     $userPrompt .= "2. 最近の傾向：[直近の来客数の傾向]\n";
     $userPrompt .= "3. 統計的分析：[平均値、中央値などの統計]\n";
-    $userPrompt .= "4. その他の要因：[季節、時期などの要因]\n\n";
-    $userPrompt .= "【信頼度】\nデータ数と分析の質に基づいた信頼度：[高/中/低]";
+    $userPrompt .= "4. メニュー別実績の解釈：[累計に加え、各メニューの平均・中央値・曜日別平均・予測曜日との比較をどう予測に反映したか]\n";
+    $userPrompt .= "5. その他の要因：[季節、行事、休業など]\n\n";
+    $userPrompt .= "【信頼度】\n来客数・メニュー別それぞれについて、データ数と分析の質に基づいた信頼度：[高/中/低]（簡潔に理由も）";
     
     $messages = [
         ['role' => 'system', 'content' => $systemPrompt],
         ['role' => 'user', 'content' => $userPrompt]
     ];
 
-    $aiCallResult = callAIForAttendancePrediction($messages, $config);
+    $aiCallResult = callAIForAttendancePrediction($messages, $config, 3500);
     $aiResponses = $aiCallResult['responses'] ?? [];
     $apiStatuses = $aiCallResult['statuses'] ?? [];
 
@@ -949,7 +1450,7 @@ function predictAttendance($attendanceData = [], $attendanceDataWithDays = [], $
             $mergedPredictionNumber = $openaiNumber;
         }
 
-        $mergedText = "【統合来客数予測】\n";
+        $mergedText = "【統合：来客数予測・メニュー別売上予測】\n";
         if ($mergedPredictionNumber !== null) {
             $mergedText .= "予測来客数：約{$mergedPredictionNumber}人（Gemini/OpenAI統合）\n\n";
         } else {
@@ -1095,7 +1596,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             echo json_encode($result, JSON_UNESCAPED_UNICODE);
         }
     } elseif ($action === 'attendance') {
-        // 来客数予測（date で Y-m-d 指定可。未指定は当日）
+        // 来客数予測・メニュー別売上（販売数）予測（date で Y-m-d 指定可。未指定は当日）
         $predictionDate = isset($_GET['date']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['date']) ? $_GET['date'] : date('Y-m-d');
         $attendanceData = readAttendanceData();
         $attendanceDataWithDays = readAttendanceDataWithDays();
