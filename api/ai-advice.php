@@ -766,7 +766,8 @@ function calculateDayOfWeekStats($attendanceDataWithDays) {
 }
 
 // 来客数予測を生成（改善版：曜日別分析を含む）
-function predictAttendance($attendanceData = [], $attendanceDataWithDays = []) {
+// $targetDate: Y-m-d（null または不正なら当日）
+function predictAttendance($attendanceData = [], $attendanceDataWithDays = [], $targetDate = null) {
     $config = getAIConfig();
 
     $hasGemini = ($config['gemini']['enabled'] ?? false) && !empty($config['gemini']['api_key']);
@@ -779,22 +780,30 @@ function predictAttendance($attendanceData = [], $attendanceDataWithDays = []) {
         return ['prediction' => 'データ不足のため予測できません', 'confidence' => 'low'];
     }
     
-    $todayDayOfWeek = getTodayDayOfWeek();
-    $todayDate = date('Y-m-d');
+    if ($targetDate === null || !is_string($targetDate) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $targetDate)) {
+        $targetDate = date('Y-m-d');
+    }
+    $predictTs = strtotime($targetDate);
+    if ($predictTs === false) {
+        $targetDate = date('Y-m-d');
+        $predictTs = strtotime($targetDate);
+    }
+    $targetDayOfWeek = getDayOfWeekForDate($targetDate);
+    $dateLabel = date('Y年n月j日', $predictTs);
 
-    // 祝日・行事お知らせ情報
+    // 祝日・行事お知らせ情報（予測対象日）
     $holidays = readHolidays();
     $events = readEvents();
     $todayHoliday = null;
     foreach ($holidays as $h) {
-        if (($h['date'] ?? '') === $todayDate) {
+        if (($h['date'] ?? '') === $targetDate) {
             $todayHoliday = $h;
             break;
         }
     }
     $todayEvents = [];
     foreach ($events as $e) {
-        if (($e['date'] ?? '') === $todayDate) {
+        if (($e['date'] ?? '') === $targetDate) {
             $todayEvents[] = trim((string)($e['description'] ?? ''));
         }
     }
@@ -826,7 +835,7 @@ function predictAttendance($attendanceData = [], $attendanceDataWithDays = []) {
         $recentAvg = round(array_sum($recentData) / count($recentData));
     }
     
-    $systemPrompt = "あなたは学校食堂の来客数予測の専門家です。過去データを多角的に分析し、今日の来客数を予測してください。"
+    $systemPrompt = "あなたは学校食堂の来客数予測の専門家です。過去データを多角的に分析し、指定された予測対象日の来客数を予測してください。"
         . "曜日傾向・最近の傾向・統計に加えて、祝日/休業日と校内の行事・お知らせの影響を必ず考慮してください。";
     
     $userPrompt = "【過去の来客数データ - 全体統計】\n";
@@ -846,10 +855,10 @@ function predictAttendance($attendanceData = [], $attendanceDataWithDays = []) {
             $userPrompt .= "- {$day}曜日：平均{$stat['avg']}人（最大{$stat['max']}人、最小{$stat['min']}人、データ数{$stat['count']}件）\n";
         }
         
-        // 今日の曜日の統計を強調
-        if (isset($dayOfWeekStats[$todayDayOfWeek])) {
-            $todayStat = $dayOfWeekStats[$todayDayOfWeek];
-            $userPrompt .= "\n【今日（{$todayDayOfWeek}曜日）の過去データ】\n";
+        // 予測対象曜日の統計を強調
+        if (isset($dayOfWeekStats[$targetDayOfWeek])) {
+            $todayStat = $dayOfWeekStats[$targetDayOfWeek];
+            $userPrompt .= "\n【予測対象日（{$targetDayOfWeek}曜日）の過去データ】\n";
             $userPrompt .= "- 平均：{$todayStat['avg']}人\n";
             $userPrompt .= "- 最大：{$todayStat['max']}人\n";
             $userPrompt .= "- 最小：{$todayStat['min']}人\n";
@@ -866,16 +875,16 @@ function predictAttendance($attendanceData = [], $attendanceDataWithDays = []) {
     $userPrompt .= "5. データの信頼性（データ数が多いほど信頼性が高い）\n\n";
     $userPrompt .= "6. 祝日・休業日の影響\n";
     $userPrompt .= "7. 行事・お知らせ（学校イベント等）の影響\n\n";
-    $userPrompt .= "今日は{$todayDayOfWeek}曜日です。\n\n";
+    $userPrompt .= "予測対象日は {$dateLabel}（{$targetDayOfWeek}曜日）です。\n\n";
     if ($todayHoliday) {
         $reason = (string)($todayHoliday['reason'] ?? '休業日');
-        $userPrompt .= "【本日の祝日/休業情報】\n- {$todayDate} は休業扱い（理由: {$reason}）\n";
+        $userPrompt .= "【予測対象日の祝日/休業情報】\n- {$targetDate} は休業扱い（理由: {$reason}）\n";
         $userPrompt .= "- 休業日であれば来客数は通常より大幅減（必要に応じて0〜ごく少数）を優先して見積もってください。\n\n";
     } else {
-        $userPrompt .= "【本日の祝日/休業情報】\n- {$todayDate} は通常営業日（休業登録なし）\n\n";
+        $userPrompt .= "【予測対象日の祝日/休業情報】\n- {$targetDate} は通常営業日（休業登録なし）\n\n";
     }
     if (!empty($todayEvents)) {
-        $userPrompt .= "【本日の行事・お知らせ】\n";
+        $userPrompt .= "【予測対象日の行事・お知らせ】\n";
         foreach ($todayEvents as $ev) {
             if ($ev !== '') {
                 $userPrompt .= "- {$ev}\n";
@@ -883,9 +892,9 @@ function predictAttendance($attendanceData = [], $attendanceDataWithDays = []) {
         }
         $userPrompt .= "行事内容に応じて来客増減を見積もってください。\n\n";
     } else {
-        $userPrompt .= "【本日の行事・お知らせ】\n- 特記事項なし\n\n";
+        $userPrompt .= "【予測対象日の行事・お知らせ】\n- 特記事項なし\n\n";
     }
-    $userPrompt .= "これらのデータを基に、多角的な分析を行い、今日の来客数を予測してください。\n\n";
+    $userPrompt .= "これらのデータを基に、多角的な分析を行い、{$dateLabel}の来客数を予測してください。\n\n";
     $userPrompt .= "以下の形式で回答してください：\n\n【来客数予測】\n\n予測来客数：約[人数]人\n\n【分析根拠】\n";
     $userPrompt .= "1. 曜日別分析：[同じ曜日の傾向]\n";
     $userPrompt .= "2. 最近の傾向：[直近の来客数の傾向]\n";
@@ -904,13 +913,13 @@ function predictAttendance($attendanceData = [], $attendanceDataWithDays = []) {
 
     if (empty($aiResponses)) {
         // AI APIが失敗した場合、曜日別統計があればそれを使用
-        if (!empty($dayOfWeekStats) && isset($dayOfWeekStats[$todayDayOfWeek])) {
-            $prediction = $dayOfWeekStats[$todayDayOfWeek]['avg'];
+        if (!empty($dayOfWeekStats) && isset($dayOfWeekStats[$targetDayOfWeek])) {
+            $prediction = $dayOfWeekStats[$targetDayOfWeek]['avg'];
             return [
                 'prediction' => $prediction,
                 'confidence' => 'medium',
                 'method' => 'day_of_week_statistical',
-                'details' => "{$todayDayOfWeek}曜日の過去平均値（{$prediction}人）を基に予測しました。"
+                'details' => "{$targetDayOfWeek}曜日の過去平均値（{$prediction}人）を基に予測しました。"
             ];
         }
         
@@ -989,18 +998,25 @@ function predictAttendance($attendanceData = [], $attendanceDataWithDays = []) {
 }
 
 // 来客数予測の数値を取得（簡易版：統計的な予測）
-function getAttendancePredictionNumber($attendanceData = [], $attendanceDataWithDays = []) {
+// $targetDate: Y-m-d（null または不正なら当日）
+function getAttendancePredictionNumber($attendanceData = [], $attendanceDataWithDays = [], $targetDate = null) {
     if (empty($attendanceData)) {
         return null;
     }
     
-    $todayDayOfWeek = getTodayDayOfWeek();
+    if ($targetDate === null || !is_string($targetDate) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $targetDate)) {
+        $targetDate = date('Y-m-d');
+    }
+    if (strtotime($targetDate) === false) {
+        $targetDate = date('Y-m-d');
+    }
+    $targetDayOfWeek = getDayOfWeekForDate($targetDate);
     
     // 曜日別統計があればそれを使用
     if (!empty($attendanceDataWithDays)) {
         $dayOfWeekStats = calculateDayOfWeekStats($attendanceDataWithDays);
-        if (isset($dayOfWeekStats[$todayDayOfWeek])) {
-            return $dayOfWeekStats[$todayDayOfWeek]['avg'];
+        if (isset($dayOfWeekStats[$targetDayOfWeek])) {
+            return $dayOfWeekStats[$targetDayOfWeek]['avg'];
         }
     }
     
@@ -1079,23 +1095,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             echo json_encode($result, JSON_UNESCAPED_UNICODE);
         }
     } elseif ($action === 'attendance') {
-        // 来客数予測
+        // 来客数予測（date で Y-m-d 指定可。未指定は当日）
+        $predictionDate = isset($_GET['date']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['date']) ? $_GET['date'] : date('Y-m-d');
         $attendanceData = readAttendanceData();
         $attendanceDataWithDays = readAttendanceDataWithDays();
         
-        $result = predictAttendance($attendanceData, $attendanceDataWithDays);
+        $result = predictAttendance($attendanceData, $attendanceDataWithDays, $predictionDate);
+        if (is_array($result)) {
+            $result['date'] = $predictionDate;
+        }
         echo json_encode($result, JSON_UNESCAPED_UNICODE);
     } elseif ($action === 'prediction-number') {
-        // 来客数予測の数値のみを返す（簡易版）
+        // 来客数予測の数値のみを返す（簡易版・date で対象日指定可）
+        $predictionDate = isset($_GET['date']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['date']) ? $_GET['date'] : date('Y-m-d');
         $attendanceData = readAttendanceData();
         $attendanceDataWithDays = readAttendanceDataWithDays();
         
-        $predictionNumber = getAttendancePredictionNumber($attendanceData, $attendanceDataWithDays);
+        $predictionNumber = getAttendancePredictionNumber($attendanceData, $attendanceDataWithDays, $predictionDate);
         $congestion = getCongestionLevel($predictionNumber);
         
         echo json_encode([
             'prediction' => $predictionNumber,
-            'congestion' => $congestion
+            'congestion' => $congestion,
+            'date' => $predictionDate
         ], JSON_UNESCAPED_UNICODE);
     } else {
         http_response_code(400);
