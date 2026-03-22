@@ -204,10 +204,13 @@
                 </div>
               </div>
 
-              <div class="admin-card" style="margin-top:12px; padding:12px; background:#e8f5e9; border:1px solid #c8e6c9; border-radius:8px;">
+              <div class="admin-card"
+                style="margin-top:12px; padding:12px; background:#e8f5e9; border:1px solid #c8e6c9; border-radius:8px;">
                 <h4 style="margin:0 0 8px 0;">📦 メニュー残数リセット</h4>
-                <p style="margin:0 0 10px 0; font-size:14px; color:#333;">定食を含むメニューの残数は、<strong>日付が変わると自動で初期値にリセット</strong>されます。手動でリセットしたい場合は下のボタンを押してください。</p>
-                <button type="button" onclick="triggerMenuStockReset()" class="btn btn-secondary">今すぐ残数を初期値にリセット</button>
+                <p style="margin:0 0 10px 0; font-size:14px; color:#333;">
+                  定食を含むメニューの残数は、<strong>日付が変わると自動で初期値にリセット</strong>されます。手動でリセットしたい場合は下のボタンを押してください。</p>
+                <button type="button" onclick="triggerMenuStockReset()"
+                  class="btn btn-secondary">今すぐ残数を初期値にリセット</button>
                 <span id="menu-reset-status" style="margin-left:10px; font-size:14px;"></span>
               </div>
             </div>
@@ -245,10 +248,14 @@
               <div class="admin-card">
                 <h3>休業日一覧</h3>
                 <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px;">
-                  <button type="button" id="btn-holidays-current" class="btn btn-primary" onclick="setHolidaysViewMode('current')">今後の予定</button>
-                  <button type="button" id="btn-holidays-past" class="btn" style="background:#f0f0f0;border:2px solid #ddd;" onclick="setHolidaysViewMode('past')">過去の休業日を見る</button>
+                  <button type="button" id="btn-holidays-current" class="btn btn-primary"
+                    onclick="setHolidaysViewMode('current')">今後の予定</button>
+                  <button type="button" id="btn-holidays-past" class="btn"
+                    style="background:#f0f0f0;border:2px solid #ddd;"
+                    onclick="setHolidaysViewMode('past')">過去の休業日を見る</button>
                   <div id="holidays-past-search-wrap" style="display:none; flex:1; min-width:200px;">
-                    <input type="text" id="holidays-past-search" placeholder="日付・理由で検索" style="width:100%;padding:8px 12px;border:2px solid #ddd;border-radius:6px;">
+                    <input type="text" id="holidays-past-search" placeholder="日付・理由で検索"
+                      style="width:100%;padding:8px 12px;border:2px solid #ddd;border-radius:6px;">
                   </div>
                 </div>
                 <div id="holidays-list" class="holidays-list"></div>
@@ -277,16 +284,21 @@
                     <input type="text" id="daily-menu-food" placeholder="例: カレーライス、日替わり定食" required>
                   </div>
                   <button id="btn-daily-menu-set" onclick="addDailyMenu()" class="btn btn-primary">定食を設定</button>
-                  <div id="daily-menu-holiday-warning" style="margin-top:10px; color:#dc3545; font-size:14px; display:none;"></div>
+                  <div id="daily-menu-holiday-warning"
+                    style="margin-top:10px; color:#dc3545; font-size:14px; display:none;"></div>
                 </div>
 
                 <div class="admin-card">
                   <h3>定食設定一覧</h3>
                   <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px;">
-                    <button type="button" id="btn-dailymenu-current" class="btn btn-primary" onclick="setDailyMenuViewMode('current')">今後の予定</button>
-                    <button type="button" id="btn-dailymenu-past" class="btn" style="background:#f0f0f0;border:2px solid #ddd;" onclick="setDailyMenuViewMode('past')">過去の定食設定を見る</button>
+                    <button type="button" id="btn-dailymenu-current" class="btn btn-primary"
+                      onclick="setDailyMenuViewMode('current')">今後の予定</button>
+                    <button type="button" id="btn-dailymenu-past" class="btn"
+                      style="background:#f0f0f0;border:2px solid #ddd;"
+                      onclick="setDailyMenuViewMode('past')">過去の定食設定を見る</button>
                     <div id="dailymenu-past-search-wrap" style="display:none; flex:1; min-width:200px;">
-                      <input type="text" id="dailymenu-past-search" placeholder="日付・メニュー名で検索" style="width:100%;padding:8px 12px;border:2px solid #ddd;border-radius:6px;">
+                      <input type="text" id="dailymenu-past-search" placeholder="日付・メニュー名で検索"
+                        style="width:100%;padding:8px 12px;border:2px solid #ddd;border-radius:6px;">
                     </div>
                   </div>
                   <div id="daily-menu-list"></div>
@@ -321,10 +333,14 @@
                 <div class="admin-card">
                   <h3>行事・お知らせ一覧</h3>
                   <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px;">
-                    <button type="button" id="btn-events-current" class="btn btn-primary" onclick="setEventsViewMode('current')">今後の予定</button>
-                    <button type="button" id="btn-events-past" class="btn" style="background:#f0f0f0;border:2px solid #ddd;" onclick="setEventsViewMode('past')">過去の行事・お知らせを見る</button>
+                    <button type="button" id="btn-events-current" class="btn btn-primary"
+                      onclick="setEventsViewMode('current')">今後の予定</button>
+                    <button type="button" id="btn-events-past" class="btn"
+                      style="background:#f0f0f0;border:2px solid #ddd;"
+                      onclick="setEventsViewMode('past')">過去の行事・お知らせを見る</button>
                     <div id="events-past-search-wrap" style="display:none; flex:1; min-width:200px;">
-                      <input type="text" id="events-past-search" placeholder="日付・内容で検索" style="width:100%;padding:8px 12px;border:2px solid #ddd;border-radius:6px;">
+                      <input type="text" id="events-past-search" placeholder="日付・内容で検索"
+                        style="width:100%;padding:8px 12px;border:2px solid #ddd;border-radius:6px;">
                     </div>
                   </div>
                   <div id="events-list"></div>
@@ -421,11 +437,15 @@
                   <div class="form-group" style="margin:0;">
                     <label style="display:block;margin-bottom:4px;">表示</label>
                     <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                      <button type="button" id="btn-view-today" class="btn btn-primary" onclick="setReservationViewMode('today')">今日の予約</button>
-                      <button type="button" id="btn-view-past" class="btn" style="background:#f0f0f0;border:2px solid #ddd;" onclick="setReservationViewMode('past')">過去の予約を見る</button>
+                      <button type="button" id="btn-view-today" class="btn btn-primary"
+                        onclick="setReservationViewMode('today')">今日の予約</button>
+                      <button type="button" id="btn-view-past" class="btn"
+                        style="background:#f0f0f0;border:2px solid #ddd;"
+                        onclick="setReservationViewMode('past')">過去の予約を見る</button>
                     </div>
                   </div>
-                  <div class="form-group" id="past-date-wrap" style="margin:0;min-width:200px;flex:0 0 auto;display:none;">
+                  <div class="form-group" id="past-date-wrap"
+                    style="margin:0;min-width:200px;flex:0 0 auto;display:none;">
                     <label for="admin-filter-date">表示する日付</label>
                     <input type="date" id="admin-filter-date">
                   </div>
@@ -472,25 +492,23 @@
             <div class="accordion-body">
               <div class="admin-card">
                 <h3>レポート生成</h3>
-                  <div class="form-group">
-                    <label for="report-ym" style="margin-right: 10px;">対象月:</label>
-                    <input
-                      type="month"
-                      id="report-ym"
-                      min="2024-01"
-                      max="2026-12"
-                      style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; max-width: 220px; width: 100%;"
-                    >
-                    <div id="report-ym-hint" style="color: #6c757d; font-size: 12px; margin-top: 6px;">
-                      例：2026-03
-                    </div>
+                <div class="form-group">
+                  <label for="report-ym" style="margin-right: 10px;">対象月:</label>
+                  <input type="month" id="report-ym" min="2024-01" max="2026-12"
+                    style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; max-width: 220px; width: 100%;">
+                  <div id="report-ym-hint" style="color: #6c757d; font-size: 12px; margin-top: 6px;">
+                    例：2026-03
                   </div>
+                </div>
 
-                  <div style="margin: 10px 0 8px; display: flex; gap: 10px; flex-wrap: wrap;">
-                    <button type="button" onclick="shiftReportYm(-1)" class="btn btn-secondary" style="padding: 8px 12px;">前月</button>
-                    <button type="button" onclick="shiftReportYm(0)" class="btn btn-primary" style="padding: 8px 12px;">今月</button>
-                    <button type="button" onclick="shiftReportYm(1)" class="btn btn-secondary" style="padding: 8px 12px;">翌月</button>
-                  </div>
+                <div style="margin: 10px 0 8px; display: flex; gap: 10px; flex-wrap: wrap;">
+                  <button type="button" onclick="shiftReportYm(-1)" class="btn btn-secondary"
+                    style="padding: 8px 12px;">前月</button>
+                  <button type="button" onclick="shiftReportYm(0)" class="btn btn-primary"
+                    style="padding: 8px 12px;">今月</button>
+                  <button type="button" onclick="shiftReportYm(1)" class="btn btn-secondary"
+                    style="padding: 8px 12px;">翌月</button>
+                </div>
                 <div style="margin-bottom:10px;">
                   <button onclick="generateReport()" class="btn btn-primary">レポート生成</button>
                   <button onclick="downloadReport()" class="btn btn-success">Excel形式でダウンロード</button>
@@ -514,8 +532,10 @@
                 <p style="color: #666; margin-bottom: 15px;">
                   選択した年月のデータ（売上・来客・レビュー）をAIが分析し、改善点と良い点を提示します。
                 </p>
-                <div style="margin-bottom: 12px; padding: 10px 12px; background: #eef7ff; border: 1px solid #cfe8ff; border-radius: 8px; color: #245;">
-                  <strong>参照データ:</strong> <code>data/sales-data.json</code>（日別予約/来客）・<code>data/reviews.json</code>（レビュー）・<code>data/holidays.json</code>（営業日算出）
+                <div
+                  style="margin-bottom: 12px; padding: 10px 12px; background: #eef7ff; border: 1px solid #cfe8ff; border-radius: 8px; color: #245;">
+                  <strong>参照データ:</strong>
+                  <code>data/sales-data.json</code>（日別予約/来客）・<code>data/reviews.json</code>（レビュー）・<code>data/holidays.json</code>（営業日算出）
                 </div>
                 <div class="form-group">
                   <label for="ai-analysis-year">年:</label>
@@ -543,7 +563,8 @@
                   </select>
                 </div>
                 <div style="margin-bottom:10px; display:flex; gap:8px; flex-wrap:wrap;">
-                  <button type="button" onclick="setAIAnalysisToCurrentMonth()" class="btn btn-secondary">今月に合わせる</button>
+                  <button type="button" onclick="setAIAnalysisToCurrentMonth()"
+                    class="btn btn-secondary">今月に合わせる</button>
                   <button onclick="performAIAnalysis()" class="btn btn-primary">🤖 AI分析を実行</button>
                 </div>
                 <div id="ai-analysis-display">
@@ -568,8 +589,9 @@
                 <div class="admin-card">
                   <h3>📊 来客数データのアップロード</h3>
                   <p style="color: #666; font-size: 14px; margin-bottom: 15px;">
-                    ※ エクセルファイル（.xlsx）をアップロードして、来客数予測の精度を向上させます。<br>
-                    ※ エクセルファイルの1列目に日付、2列目に来客数を入力してください。
+                    ※ 月次の販売表（.xlsx /
+                    .csv）をアップロードしてください。R7,1月形式の見出し・曜日行・各メニュー行・「メニュー合計」行があると、日別の来客数と<strong>メニュー別販売個数</strong>の両方を取り込みます。<br>
+                    ※ 従来どおり「メニュー合計」行だけのCSVにも対応します（メニュー内訳は取り込めません）。
                   </p>
                   <div class="form-group">
                     <label for="excel-file">エクセルファイルを選択:</label>
@@ -593,10 +615,13 @@
                 </p>
                 <div class="form-group" style="margin-bottom: 15px;">
                   <label for="advice-date">日付を選択:</label>
-                  <input type="date" id="advice-date" style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px;">
+                  <input type="date" id="advice-date"
+                    style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px;">
                 </div>
                 <button onclick="getMenuAdvice()" class="btn btn-primary">選択した日付の定食アドバイスを表示</button>
-                <button type="button" id="btn-menu-advice-alternate" onclick="getAlternateMenuAdvice()" class="btn" style="margin-left:8px; background:#6c757d; color:#fff; border:none; display:none;">🔄 ほかのメニューを提案</button>
+                <button type="button" id="btn-menu-advice-alternate" onclick="getAlternateMenuAdvice()" class="btn"
+                  style="margin-left:8px; background:#6c757d; color:#fff; border:none; display:none;">🔄
+                  ほかのメニューを提案</button>
                 <div id="menu-advice-display"
                   style="margin-top: 20px; padding: 15px; background-color: #f8f9fa; border-radius: 8px; border: 1px solid #e9ecef; min-height: 100px;">
                   <p style="color: #6c757d;">日付を選択して「選択した日付の定食アドバイスを表示」をクリックしてください</p>
@@ -619,18 +644,19 @@
               </div>
 
               <div class="admin-card" style="margin-top: 20px;">
-                <h3>👥 来客数予測</h3>
+                <h3>👥 来客数予測・メニュー別売上予測</h3>
                 <p style="color: #666; font-size: 14px; margin-bottom: 15px;">
-                  日付を選ぶと、その日の来客数をAIが過去データ・曜日傾向・祝日・行事などから予測します（未選択の場合は今日）。
+                  日付を選ぶと、その日の来客数に加え、予約・売上データ（メニュー別販売実績）と定食設定を踏まえて、メニューごとの見込み人数もAIが分析します（未選択の場合は今日）。メニュー別人数の合計は予測来客数と揃える指示を出しています。定食が設定され来客が多い日は、定食はおおよそ20〜30人を目安に配分します。メニュー実績は直近約120日分を参照します。
                 </p>
                 <div class="form-group" style="margin-bottom: 15px;">
                   <label for="attendance-prediction-date">日付を選択:</label>
-                  <input type="date" id="attendance-prediction-date" style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px;">
+                  <input type="date" id="attendance-prediction-date"
+                    style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px;">
                 </div>
-                <button onclick="getAttendancePrediction()" class="btn btn-primary">選択した日付の来客数を予測</button>
+                <button onclick="getAttendancePrediction()" class="btn btn-primary">来客数・メニュー別を予測</button>
                 <div id="attendance-prediction-display"
                   style="margin-top: 20px; padding: 15px; background-color: #f8f9fa; border-radius: 8px; border: 1px solid #e9ecef; min-height: 100px;">
-                  <p style="color: #6c757d;">日付を選んで「選択した日付の来客数を予測」をクリックしてください</p>
+                  <p style="color: #6c757d;">日付を選んで「来客数・メニュー別を予測」をクリックしてください</p>
                 </div>
               </div>
             </div>
@@ -1238,7 +1264,7 @@
       console.log('[管理画面デバッグ] APIベースパス:', apiBase);
       console.log('[管理画面デバッグ] プロトコル:', window.location.protocol);
       console.log('[管理画面デバッグ] URL:', window.location.href);
-      
+
       try {
         const reservationsUrl = apiBase + 'sales-data.php?reservations=true';
         console.log('[管理画面デバッグ] 予約取得URL:', reservationsUrl);
@@ -1246,7 +1272,7 @@
         console.log('[管理画面デバッグ] 取得データ:', raw);
         console.log('[管理画面デバッグ] データタイプ:', Array.isArray(raw) ? '配列' : typeof raw);
         console.log('[管理画面デバッグ] 📁 読み込み元: sales-data.json');
-        
+
         if (Array.isArray(raw)) {
           reservations = raw;
         } else if (raw && Array.isArray(raw.reservations)) {
@@ -1979,7 +2005,7 @@
       if (!canvas) return;
       const daily = (report && report.dailySales) ? report.dailySales : [];
       if (!daily.length) return;
-      
+
       // クリア
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
@@ -1991,13 +2017,13 @@
       canvas.width = Math.floor(cssWidth * dpr);
       canvas.height = Math.floor(cssHeight * dpr);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      
+
       ctx.clearRect(0, 0, cssWidth, cssHeight);
 
       const padding = { left: 48, right: 16, top: 18, bottom: 44 };
       const plotW = cssWidth - padding.left - padding.right;
       const plotH = cssHeight - padding.top - padding.bottom;
-      
+
       const maxVal = Math.max(
         1,
         ...daily.map(d => Number(d.people || 0)),
@@ -2041,7 +2067,7 @@
         const x0 = padding.left + barGroupW * idx;
         const reservations = Number(d.reservations || 0);
         const people = Number(d.people || 0);
-        
+
         const hBlue = plotH * (reservations / maxVal);
         const hGreen = plotH * (people / maxVal);
 
@@ -2730,6 +2756,232 @@
     }
 
     // === AIアドバイス機能 ===
+    async function ensureExcelJSLoaded() {
+      if (window.ExcelJS) return window.ExcelJS;
+      const cdn = 'https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js';
+      await new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = cdn;
+        script.async = true;
+        script.onload = resolve;
+        script.onerror = () => reject(new Error('ExcelJSの読み込みに失敗しました（CDN）'));
+        document.head.appendChild(script);
+      });
+      return window.ExcelJS;
+    }
+
+    function splitCsvLine(line) {
+      const out = [];
+      let cur = '';
+      let inQ = false;
+      for (let i = 0; i < line.length; i++) {
+        const ch = line[i];
+        if (ch === '"') {
+          inQ = !inQ;
+          continue;
+        }
+        if (!inQ && ch === ',') {
+          out.push(cur.trim());
+          cur = '';
+          continue;
+        }
+        cur += ch;
+      }
+      out.push(cur.trim());
+      return out;
+    }
+
+    function cellAt(row, idx) {
+      return (row[idx] != null ? String(row[idx]) : '').trim();
+    }
+
+    /** エクセル上の「日替丼」は「日替定食」と同一メニューとして集計 */
+    function normalizeMenuNameFromSpreadsheet(name) {
+      const t = (name != null ? String(name) : '').trim();
+      if (t === '日替丼') return '日替定食';
+      return t;
+    }
+
+    /** ✕・空は null（列スキップ）、0 は有効 */
+    function parseSpreadsheetCellNumber(v) {
+      const s = (v != null ? String(v) : '').trim();
+      if (s === '' || s === '✕' || s === '×' || s.toLowerCase() === 'x') return null;
+      const n = parseInt(s, 10);
+      if (Number.isNaN(n) || n < 0) return null;
+      return n;
+    }
+
+    /**
+     * R7,1月 形式の月次表（曜日行・各メニュー・メニュー合計）を行列から解析
+     */
+    function parseAttendanceSpreadsheetMatrix(rows) {
+      const dayNames = ['日', '月', '火', '水', '木', '金', '土'];
+      const dailyMap = new Map();
+      const attendanceData = [];
+      const attendanceDataWithDays = [];
+      const pad = (n) => (n < 10 ? '0' + n : '' + n);
+
+      function ensureRecord(dateStr, weekday) {
+        if (!dailyMap.has(dateStr)) {
+          dailyMap.set(dateStr, { date: dateStr, day: weekday, attendance: 0, menuSales: {} });
+        }
+        return dailyMap.get(dateStr);
+      }
+
+      let i = 0;
+      while (i < rows.length) {
+        const cols = rows[i];
+        if (!cols || cols.length < 2) {
+          i++;
+          continue;
+        }
+        const c0 = cellAt(cols, 0).replace(/^\uFEFF/, '');
+        const c1 = cellAt(cols, 1);
+        const reiwaM = c0.match(/^R(\d+)$/i);
+        const monthM = c1.match(/^(\d+)月$/);
+        if (!reiwaM || !monthM) {
+          i++;
+          continue;
+        }
+        const reiwa = parseInt(reiwaM[1], 10);
+        const month = parseInt(monthM[1], 10);
+        const year = 2018 + reiwa;
+
+        const dayCols = [];
+        for (let j = 2; j < cols.length; j++) {
+          const t = cellAt(cols, j);
+          if (t === '') continue;
+          if (!/^\d+$/.test(t)) break;
+          dayCols.push({ col: j, dayNum: parseInt(t, 10) });
+        }
+        if (dayCols.length === 0) {
+          i++;
+          continue;
+        }
+
+        i++;
+        if (i >= rows.length) break;
+        const wrow = rows[i];
+        const colMeta = [];
+        for (const dc of dayCols) {
+          const wd = cellAt(wrow, dc.col);
+          if (!dayNames.includes(wd)) continue;
+          const dateStr = `${year}-${pad(month)}-${pad(dc.dayNum)}`;
+          const test = new Date(`${dateStr}T12:00:00`);
+          if (test.getFullYear() !== year || test.getMonth() + 1 !== month || test.getDate() !== dc.dayNum) {
+            continue;
+          }
+          colMeta.push({ col: dc.col, dayNum: dc.dayNum, weekday: wd, dateStr });
+        }
+        i++;
+
+        const menuLines = [];
+        while (i < rows.length) {
+          const line = rows[i];
+          const label = cellAt(line, 1);
+          if (label === 'メニュー合計') break;
+          if (label !== '') menuLines.push(line);
+          i++;
+        }
+        if (i >= rows.length || cellAt(rows[i], 1) !== 'メニュー合計') {
+          continue;
+        }
+        const totalLine = rows[i];
+
+        for (const m of colMeta) {
+          const att = parseSpreadsheetCellNumber(cellAt(totalLine, m.col));
+          if (att === null) continue;
+          const rec = ensureRecord(m.dateStr, m.weekday);
+          rec.attendance = att;
+          rec.day = m.weekday;
+          attendanceData.push(att);
+          attendanceDataWithDays.push({ attendance: att, day: m.weekday });
+        }
+
+        for (const line of menuLines) {
+          const menuName = normalizeMenuNameFromSpreadsheet(cellAt(line, 1));
+          if (!menuName || menuName === 'メニュー合計') continue;
+          for (const m of colMeta) {
+            const att = parseSpreadsheetCellNumber(cellAt(totalLine, m.col));
+            if (att === null) continue;
+            const qty = parseSpreadsheetCellNumber(cellAt(line, m.col));
+            if (qty === null || qty === 0) continue;
+            const rec = ensureRecord(m.dateStr, m.weekday);
+            rec.menuSales[menuName] = (rec.menuSales[menuName] || 0) + qty;
+          }
+        }
+
+        i++;
+      }
+
+      const dailyRecords = Array.from(dailyMap.values()).sort((a, b) => a.date.localeCompare(b.date));
+      return { dailyRecords, attendance: attendanceData, attendanceWithDays: attendanceDataWithDays };
+    }
+
+    function parseLegacyMenuTotalOnly(text) {
+      const lines = text.split(/\r?\n/).filter(line => line.trim());
+      const attendanceData = [];
+      const attendanceDataWithDays = [];
+      const dayNames = ['日', '月', '火', '水', '木', '金', '土'];
+
+      for (let i = 0; i < lines.length; i++) {
+        const columns = splitCsvLine(lines[i]);
+        if (columns.length > 1 && columns[1].trim() === 'メニュー合計') {
+          let sectionDayRow = null;
+          for (let k = Math.max(0, i - 30); k < i; k++) {
+            const checkColumns = splitCsvLine(lines[k]);
+            if (checkColumns.length > 2 && checkColumns[0].trim() === '' && checkColumns[1].trim() === '' && dayNames.includes(checkColumns[2].trim())) {
+              sectionDayRow = checkColumns;
+              break;
+            }
+          }
+          for (let j = 2; j < columns.length; j++) {
+            const value = columns[j].trim();
+            if (value && value !== '✕' && value !== '') {
+              const num = parseInt(value, 10);
+              if (!Number.isNaN(num) && num >= 0) {
+                attendanceData.push(num);
+                let day = null;
+                if (sectionDayRow && j < sectionDayRow.length) {
+                  const dayValue = sectionDayRow[j].trim();
+                  if (dayNames.includes(dayValue)) day = dayValue;
+                }
+                attendanceDataWithDays.push({ attendance: num, day });
+              }
+            }
+          }
+        }
+      }
+      return { dailyRecords: [], attendance: attendanceData, attendanceWithDays: attendanceDataWithDays };
+    }
+
+    async function workbookFirstSheetToMatrix(buffer) {
+      const ExcelJS = await ensureExcelJSLoaded();
+      const wb = new ExcelJS.Workbook();
+      await wb.xlsx.load(buffer);
+      const ws = wb.worksheets[0];
+      if (!ws) return [];
+      const rows = [];
+      ws.eachRow({ includeEmpty: true }, (row) => {
+        const last = row.lastColumn ? row.lastColumn.number : row.cellCount;
+        const n = Math.max(last || 0, 1);
+        const r = [];
+        for (let c = 1; c <= n; c++) {
+          const cell = row.getCell(c);
+          let v = cell.value;
+          if (v && typeof v === 'object') {
+            if ('text' in v) v = v.text;
+            else if ('richText' in v && Array.isArray(v.richText)) v = v.richText.map(t => t.text).join('');
+            else if ('result' in v) v = v.result;
+            else v = String(v);
+          }
+          r.push(v == null ? '' : String(v).trim());
+        }
+        rows.push(r);
+      });
+      return rows;
+    }
+
     async function uploadExcelFile() {
       const fileInput = document.getElementById('excel-file');
       const file = fileInput.files[0];
@@ -2743,111 +2995,64 @@
       statusDiv.innerHTML = '<p style="color: #666;">アップロード中...</p>';
 
       try {
-        // ファイルを読み込む（CSV形式として扱う）
-        const reader = new FileReader();
-        reader.onload = async function (e) {
-          try {
-            const text = e.target.result;
-            const lines = text.split('\n').filter(line => line.trim());
+        const lower = file.name.toLowerCase();
+        let parsed;
 
-            // CSVデータを解析（「メニュー合計」行から来客数を抽出、曜日情報も取得）
-            const attendanceData = [];
-            const attendanceDataWithDays = [];
-            const dayNames = ['日', '月', '火', '水', '木', '金', '土'];
-
-            // 曜日情報を取得（2行目に曜日が記載されている）
-            let dayRowIndex = -1;
-            for (let i = 0; i < lines.length; i++) {
-              const line = lines[i];
-              const columns = line.split(',');
-              // 2列目が空で、3列目以降に曜日がある行を探す
-              if (columns.length > 2 && columns[0].trim() === '' && columns[1].trim() === '' && dayNames.includes(columns[2].trim())) {
-                dayRowIndex = i;
-                break;
-              }
-            }
-
-            for (let i = 0; i < lines.length; i++) {
-              const line = lines[i];
-              const columns = line.split(',');
-
-              // 「メニュー合計」行を探す
-              if (columns.length > 1 && columns[1].trim() === 'メニュー合計') {
-                // 曜日情報を取得（同じセクションの曜日行から）
-                let sectionDayRow = null;
-                // この「メニュー合計」行より前の曜日行を探す
-                for (let k = Math.max(0, i - 30); k < i; k++) {
-                  const checkLine = lines[k];
-                  const checkColumns = checkLine.split(',');
-                  if (checkColumns.length > 2 && checkColumns[0].trim() === '' && checkColumns[1].trim() === '' && dayNames.includes(checkColumns[2].trim())) {
-                    sectionDayRow = checkColumns;
-                    break;
-                  }
-                }
-
-                // 3列目以降から数値を抽出（日付列と「メニュー合計」列をスキップ）
-                for (let j = 2; j < columns.length; j++) {
-                  const value = columns[j].trim();
-
-                  // 数値または「✕」以外の空でない値をチェック
-                  // 0も有効な来客数データとして扱う（営業していない日など）
-                  if (value && value !== '✕' && value !== '') {
-                    const num = parseInt(value);
-                    if (!isNaN(num) && num >= 0) {
-                      attendanceData.push(num);
-
-                      // 曜日情報も保存
-                      let day = null;
-                      if (sectionDayRow && j < sectionDayRow.length) {
-                        const dayValue = sectionDayRow[j].trim();
-                        if (dayNames.includes(dayValue)) {
-                          day = dayValue;
-                        }
-                      }
-
-                      attendanceDataWithDays.push({
-                        attendance: num,
-                        day: day
-                      });
-                    }
-                  }
-                }
-              }
-            }
-
-            if (attendanceData.length === 0) {
-              throw new Error('「メニュー合計」行から有効な来客数データが見つかりませんでした。CSVファイルの形式を確認してください。');
-            }
-
-            // JSONファイルとして保存（曜日情報も含む）
-            const data = {
-              attendance: attendanceData,
-              attendanceWithDays: attendanceDataWithDays,
-              uploaded_at: new Date().toISOString(),
-              total_records: attendanceData.length
-            };
-
-            // データをAPI経由で保存（簡易版：直接fetchで保存）
-            const response = await fetch('api/attendance-data.php', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(data)
-            });
-
-            if (!response.ok) {
-              throw new Error('データの保存に失敗しました');
-            }
-
-            statusDiv.innerHTML = `<p style="color: #28a745;">✅ アップロード成功！${attendanceData.length}件のデータを登録しました。</p>`;
-            loadAttendanceData();
-          } catch (error) {
-            console.error('ファイル処理エラー:', error);
-            statusDiv.innerHTML = `<p style="color: #dc3545;">❌ エラー: ${error.message}</p>`;
+        if (lower.endsWith('.xlsx') || lower.endsWith('.xls')) {
+          if (lower.endsWith('.xls') && !lower.endsWith('.xlsx')) {
+            throw new Error('古い .xls 形式は未対応です。.xlsx で保存し直すか、CSVでエクスポートしてアップロードしてください。');
           }
+          const buf = await file.arrayBuffer();
+          let matrix;
+          try {
+            matrix = await workbookFirstSheetToMatrix(buf);
+          } catch (e) {
+            throw new Error('Excelファイルの読み込みに失敗しました。.xlsx（先頭シートに月次表）かCSVをご利用ください。');
+          }
+          parsed = parseAttendanceSpreadsheetMatrix(matrix);
+          if (parsed.attendance.length === 0) {
+            throw new Error('Excelから「R◯,◯月」形式の見出しと「メニュー合計」行が見つかりませんでした。月次表シートをそのままアップロードしてください。');
+          }
+        } else {
+          const text = await file.text();
+          const lines = text.split(/\r?\n/).filter(line => line.trim());
+          const matrix = lines.map(splitCsvLine);
+          parsed = parseAttendanceSpreadsheetMatrix(matrix);
+          if (parsed.attendance.length === 0) {
+            parsed = parseLegacyMenuTotalOnly(text);
+          }
+          if (parsed.attendance.length === 0) {
+            throw new Error('有効なデータが見つかりませんでした。R7,1月形式のCSV/Excel、または「メニュー合計」行を含むCSVを確認してください。');
+          }
+        }
+
+        const { dailyRecords, attendance, attendanceWithDays } = parsed;
+        const data = {
+          attendance,
+          attendanceWithDays,
+          dailyRecords,
+          uploaded_at: new Date().toISOString(),
+          total_records: attendance.length,
+          menu_days_with_sales: dailyRecords.filter(d => Object.keys(d.menuSales || {}).length > 0).length
         };
-        reader.readAsText(file);
+
+        const response = await fetch('api/attendance-data.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+
+        if (!response.ok) {
+          throw new Error('データの保存に失敗しました');
+        }
+
+        const menuHint = dailyRecords.length
+          ? ` 日別${dailyRecords.length}日・メニュー内訳あり${data.menu_days_with_sales}日分を取り込みました。`
+          : '';
+        statusDiv.innerHTML = `<p style="color: #28a745;">✅ アップロード成功！来客数${attendance.length}件。${menuHint}</p>`;
+        loadAttendanceData();
       } catch (error) {
-        console.error('ファイル読み込みエラー:', error);
+        console.error('ファイル処理エラー:', error);
         statusDiv.innerHTML = `<p style="color: #dc3545;">❌ エラー: ${error.message}</p>`;
       }
     }
@@ -2865,6 +3070,11 @@
           const avg = Math.round(data.attendance.reduce((a, b) => a + b, 0) / data.attendance.length);
           const max = Math.max(...data.attendance);
           const min = Math.min(...data.attendance);
+          const dr = Array.isArray(data.dailyRecords) ? data.dailyRecords : [];
+          const withMenu = dr.filter(d => d.menuSales && Object.keys(d.menuSales).length > 0).length;
+          const excelLine = dr.length
+            ? `<p><strong>🍱 アップロード表の日別データ:</strong> ${dr.length}日（うちメニュー別個数あり ${withMenu} 日）— AIのメニュー予測に使用します</p>`
+            : '';
 
           displayDiv.innerHTML = `
             <div style="padding: 15px; background-color: #f8f9fa; border-radius: 8px; border: 1px solid #e9ecef;">
@@ -2872,6 +3082,7 @@
               <p><strong>📈 平均来客数:</strong> ${avg}人</p>
               <p><strong>📊 最大来客数:</strong> ${max}人</p>
               <p><strong>📉 最小来客数:</strong> ${min}人</p>
+              ${excelLine}
               ${data.uploaded_at ? `<p><strong>📅 最終更新:</strong> ${new Date(data.uploaded_at).toLocaleString('ja-JP')}</p>` : ''}
             </div>
           `;
@@ -3149,7 +3360,7 @@
         dateInput.value = selectedDate;
       }
 
-      displayDiv.innerHTML = '<p style="color: #666;">🤖 AIが来客数を予測しています...</p>';
+      displayDiv.innerHTML = '<p style="color: #666;">🤖 AIが来客数とメニュー別の販売見込みを分析しています...</p>';
 
       try {
         const response = await fetch('api/ai-advice.php?action=attendance&date=' + encodeURIComponent(selectedDate));
@@ -3190,7 +3401,7 @@
           </div>
         `;
       } catch (error) {
-        console.error('来客数予測エラー:', error);
+        console.error('来客数・メニュー別予測エラー:', error);
         displayDiv.innerHTML = `<p style="color: #dc3545;">❌ エラー: ${error.message}</p>`;
       }
     }
