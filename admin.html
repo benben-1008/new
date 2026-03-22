@@ -170,11 +170,11 @@
       <div id="tab-basic" class="tab-content active">
         <!-- 🔹 メニュー管理 -->
         <section class="admin-section">
-          <div class="accordion-header active" onclick="toggleAccordion(this)">
+          <div class="accordion-header" onclick="toggleAccordion(this)">
             <h3>🍱 メニュー管理</h3>
             <span class="accordion-icon">▼</span>
           </div>
-          <div class="accordion-content active">
+          <div class="accordion-content">
             <div class="accordion-body">
               <div class="grid-2">
                 <div class="admin-card">
@@ -619,14 +619,18 @@
               </div>
 
               <div class="admin-card" style="margin-top: 20px;">
-                <h3>👥 今日の来客数予測</h3>
+                <h3>👥 来客数予測</h3>
                 <p style="color: #666; font-size: 14px; margin-bottom: 15px;">
-                  AIが過去の来客数データを分析して、今日の来客数を予測します。
+                  日付を選ぶと、その日の来客数をAIが過去データ・曜日傾向・祝日・行事などから予測します（未選択の場合は今日）。
                 </p>
-                <button onclick="getAttendancePrediction()" class="btn btn-primary">来客数を予測</button>
+                <div class="form-group" style="margin-bottom: 15px;">
+                  <label for="attendance-prediction-date">日付を選択:</label>
+                  <input type="date" id="attendance-prediction-date" style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px;">
+                </div>
+                <button onclick="getAttendancePrediction()" class="btn btn-primary">選択した日付の来客数を予測</button>
                 <div id="attendance-prediction-display"
                   style="margin-top: 20px; padding: 15px; background-color: #f8f9fa; border-radius: 8px; border: 1px solid #e9ecef; min-height: 100px;">
-                  <p style="color: #6c757d;">「来客数を予測」ボタンをクリックしてください</p>
+                  <p style="color: #6c757d;">日付を選んで「選択した日付の来客数を予測」をクリックしてください</p>
                 </div>
               </div>
             </div>
@@ -3139,10 +3143,16 @@
 
     async function getAttendancePrediction() {
       const displayDiv = document.getElementById('attendance-prediction-display');
+      const dateInput = document.getElementById('attendance-prediction-date');
+      const selectedDate = dateInput && dateInput.value ? dateInput.value : new Date().toISOString().slice(0, 10);
+      if (dateInput && !dateInput.value) {
+        dateInput.value = selectedDate;
+      }
+
       displayDiv.innerHTML = '<p style="color: #666;">🤖 AIが来客数を予測しています...</p>';
 
       try {
-        const response = await fetch('api/ai-advice.php?action=attendance');
+        const response = await fetch('api/ai-advice.php?action=attendance&date=' + encodeURIComponent(selectedDate));
         if (!response.ok) {
           throw new Error('API呼び出しに失敗しました');
         }
@@ -3168,9 +3178,13 @@
         const apiInfoHtml = usedApiLabel
           ? `<div style="margin-top: 12px; font-size: 12px; color: #555; background: #f7f7f7; display: inline-block; padding: 4px 8px; border-radius: 6px;">使用API: ${usedApiLabel}</div>`
           : '';
+        const dateLine = data.date
+          ? `<p style="margin: 0 0 10px 0; color: #495057; font-weight: 600;">📅 予測対象日: ${data.date}</p>`
+          : '';
 
         displayDiv.innerHTML = `
           <div style="white-space: pre-wrap; line-height: 1.8;">
+            ${dateLine}
             ${predictionText}
             ${apiInfoHtml}
           </div>
